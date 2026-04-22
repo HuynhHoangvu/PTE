@@ -19,14 +19,16 @@ import { MockTestAttempt } from './mock-test/mock-test-attempt.entity';
   imports: [
     TypeOrmModule.forRoot({
       type: 'postgres',
+      url: process.env.DATABASE_URL,
       host: process.env.DB_HOST || 'localhost',
       port: parseInt(process.env.DB_PORT) || 5432,
       username: process.env.DB_USERNAME || 'postgres',
       password: process.env.DB_PASSWORD || 'password',
       database: process.env.DB_DATABASE || 'fly_edu',
       entities: [User, Question, Attempt, MockTest, MockTestAttempt],
-      synchronize: process.env.NODE_ENV !== 'production',
-      logging: process.env.NODE_ENV === 'development',
+      synchronize: true,
+      logging: false,
+      ssl: process.env.DATABASE_URL ? { rejectUnauthorized: false } : false,
     }),
     StorageModule,
     AuthModule,
