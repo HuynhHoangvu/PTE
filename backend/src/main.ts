@@ -32,6 +32,9 @@ async function bootstrap() {
     }),
   );
 
+  // Health check endpoint for Railway (must be before global prefix)
+  app.getHttpAdapter().get('/', (_req, res) => res.send('OK'));
+
   // Global prefix
   app.setGlobalPrefix('api');
 
