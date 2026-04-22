@@ -16,8 +16,11 @@ COPY --from=builder /app/dist /usr/share/nginx/html
 
 # Place nginx config as a template — nginx Docker image runs envsubst
 # automatically on all files in /etc/nginx/templates/ at startup,
-# outputting to /etc/nginx/conf.d/. This substitutes ${BACKEND_URL}.
+# outputting to /etc/nginx/conf.d/. This substitutes ${PORT} and ${BACKEND_URL}.
 COPY nginx.conf /etc/nginx/templates/default.conf.template
+
+# Default port — Railway overrides this with its own PORT env var
+ENV PORT=80
 
 EXPOSE 80
 
