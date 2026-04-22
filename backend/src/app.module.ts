@@ -29,6 +29,8 @@ import { MockTestAttempt } from './mock-test/mock-test-attempt.entity';
       synchronize: true,
       logging: false,
       ssl: process.env.DATABASE_URL ? { rejectUnauthorized: false } : false,
+      retryAttempts: 20,
+      retryDelay: 3000,
     }),
     StorageModule,
     AuthModule,
