@@ -25,13 +25,13 @@ export function Button({
   };
   const variants = {
     yellow:
-      "bg-brand-yellow text-brand-black hover:bg-brand-yellow-deep shadow-[0_2px_8px_rgba(245,197,24,0.35)]",
+      "bg-brand-gold text-white hover:bg-brand-gold-bright shadow-gold-sm hover:shadow-gold-md",
     orange: "bg-brand-orange text-white hover:bg-brand-orange-deep",
-    dark: "bg-brand-black text-brand-yellow hover:bg-brand-dark2",
+    dark:   "bg-brand-black text-brand-gold hover:bg-brand-dark2",
     ghost:
-      "bg-transparent border border-gray-200 text-gray-600 hover:border-gray-400 hover:text-gray-900",
+      "bg-transparent border border-gray-200 text-gray-600 hover:border-brand-gold/40 hover:text-brand-gold",
     outline:
-      "bg-white border-2 border-brand-yellow text-brand-black hover:bg-brand-yellow-soft",
+      "bg-white border-2 border-brand-gold text-brand-gold hover:bg-brand-gold-soft",
   };
   return (
     <button
@@ -90,11 +90,12 @@ export function ProgressBar({
 }) {
   const pct = max > 0 ? Math.min(100, Math.round((value / max) * 100)) : 0;
   const colors: Record<string, string> = {
-    yellow: "bg-brand-yellow",
-    orange: "bg-brand-orange",
-    black: "bg-brand-black",
-    green: "bg-green-500",
-    gradient: "bg-gradient-to-r from-brand-yellow to-brand-orange",
+    yellow:   "bg-brand-gold",
+    gold:     "bg-brand-gold",
+    orange:   "bg-brand-orange",
+    black:    "bg-brand-black",
+    green:    "bg-green-500",
+    gradient: "bg-gradient-to-r from-brand-gold to-brand-orange",
   };
   return (
     <div className="h-1.5 bg-gray-200 rounded-full overflow-hidden">
@@ -188,7 +189,7 @@ export function AudioPlayer({
       <div className="flex items-center gap-3">
         <button
           onClick={togglePlay}
-          className="w-9 h-9 rounded-full bg-brand-yellow flex items-center justify-center hover:bg-brand-yellow-deep transition-colors flex-shrink-0"
+          className="w-9 h-9 rounded-full bg-brand-gold flex items-center justify-center hover:bg-brand-gold-bright transition-colors flex-shrink-0"
         >
           {playing ? (
             <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
@@ -216,7 +217,7 @@ export function AudioPlayer({
           }}
         >
           <div
-            className="h-full bg-brand-yellow rounded-full"
+            className="h-full bg-brand-gold rounded-full"
             style={{
               width: duration ? `${(currentTime / duration) * 100}%` : "0%",
             }}
@@ -326,7 +327,7 @@ export function ScorePanel({
   return (
     <div className="card p-4">
       {/* Overall */}
-      <div className="flex items-center gap-4 bg-brand-yellow-light rounded-xl p-3 mb-4">
+      <div className="flex items-center gap-4 bg-brand-gold-light rounded-xl p-3 mb-4">
         <div className="w-14 h-14 rounded-full bg-brand-black flex flex-col items-center justify-center flex-shrink-0 shadow-lg">
           <span className="text-brand-yellow font-display font-bold text-xl leading-none">
             {totalScore}
