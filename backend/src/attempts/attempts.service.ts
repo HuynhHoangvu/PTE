@@ -1,13 +1,12 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import * as fs from 'fs';
-import * as path from 'path';
 
 import { Attempt, AttemptStatus } from './attempt.entity';
 import { Question } from '../questions/question.entity';
 import { User } from '../users/user.entity';
 import { AiScoringService } from '../ai-scoring/ai-scoring.service';
+import { StorageService } from '../common/storage/storage.service';
 
 @Injectable()
 export class AttemptsService {
@@ -16,6 +15,7 @@ export class AttemptsService {
     @InjectRepository(Question) private questionRepo: Repository<Question>,
     @InjectRepository(User) private userRepo: Repository<User>,
     private aiScoringService: AiScoringService,
+    private storageService: StorageService,
   ) {}
 
   async submitSpeaking(params: {
@@ -40,9 +40,9 @@ export class AttemptsService {
     });
     await this.attemptRepo.save(attempt);
 
-    // Save audio file to disk
+    // Save audio file (local disk or GCS depending on NODE_ENV)
     if (params.audioBuffer) {
-      const audioUrl = this.saveAudioFile(attempt.id, params.audioBuffer);
+      const audioUrl = await this.storageService.saveAudio(attempt.id, params.audioBuffer);
       await this.attemptRepo.update(attempt.id, { audioUrl });
     }
 
@@ -167,13 +167,6 @@ export class AttemptsService {
     });
     if (!attempt) throw new NotFoundException('Attempt not found');
     return attempt;
-  }
-
-  private saveAudioFile(attemptId: string, buffer: Buffer): string {
-    const uploadDir = path.join(process.cwd(), 'uploads', 'audio');
-    if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
-    fs.writeFileSync(path.join(uploadDir, `${attemptId}.webm`), buffer);
-    return `/uploads/audio/${attemptId}.webm`;
   }
 
   async getAttemptsByQuestion(questionId: string, userId: string) {

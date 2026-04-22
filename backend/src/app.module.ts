@@ -8,6 +8,7 @@ import { QuestionsModule } from './questions/questions.module';
 import { AttemptsModule } from './attempts/attempts.module';
 import { MockTestModule } from './mock-test/mock-test.module';
 import { AiScoringModule } from './ai-scoring/ai-scoring.module';
+import { StorageModule } from './common/storage/storage.module';
 import { User } from './users/user.entity';
 import { Question } from './questions/question.entity';
 import { Attempt } from './attempts/attempt.entity';
@@ -27,6 +28,7 @@ import { MockTestAttempt } from './mock-test/mock-test-attempt.entity';
       synchronize: process.env.NODE_ENV !== 'production',
       logging: process.env.NODE_ENV === 'development',
     }),
+    StorageModule,
     AuthModule,
     UsersModule,
     QuestionsModule,

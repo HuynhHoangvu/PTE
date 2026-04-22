@@ -65,3 +65,10 @@ test-results/
 
 # Claude settings (local only)
 .claude/
+
+# GCP service account keys (never commit!)
+*.json
+!package.json
+!package-lock.json
+!tsconfig.json
+!nest-cli.json
