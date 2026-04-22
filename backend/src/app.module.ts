@@ -28,7 +28,7 @@ import { MockTestAttempt } from './mock-test/mock-test-attempt.entity';
       entities: [User, Question, Attempt, MockTest, MockTestAttempt],
       synchronize: true,
       logging: false,
-      ssl: process.env.DATABASE_URL ? { rejectUnauthorized: false } : false,
+      ssl: process.env.DATABASE_URL && !process.env.DATABASE_URL.includes('.internal') ? { rejectUnauthorized: false } : false,
       retryAttempts: 20,
       retryDelay: 3000,
     }),
