@@ -1,0 +1,250 @@
+import React from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
+import { questionsApi, attemptsApi } from '../../api';
+import { Question, QUESTION_TYPE_LABELS } from '../../types';
+import { Button, QuestionListDrawer, AnalysisTable } from '../ui';
+import { clsx } from 'clsx';
+
+function useBookmark(questionId: string) {
+  const key = 'fly_edu_bookmarks';
+  const getAll = (): string[] => {
+    try { return JSON.parse(localStorage.getItem(key) || '[]'); } catch { return []; }
+  };
+  const [bookmarked, setBookmarked] = React.useState(() => getAll().includes(questionId));
+
+  React.useEffect(() => {
+    setBookmarked(getAll().includes(questionId));
+  }, [questionId]);
+
+  const toggle = () => {
+    const all = getAll();
+    const next = all.includes(questionId)
+      ? all.filter((id) => id !== questionId)
+      : [...all, questionId];
+    localStorage.setItem(key, JSON.stringify(next));
+    setBookmarked(!bookmarked);
+  };
+
+  return { bookmarked, toggle };
+}
+
+interface PracticeLayoutProps {
+  questionId: string;
+  children: (question: Question, attempts: any[]) => React.ReactNode;
+}
+
+export function PracticeLayout({ questionId, children }: PracticeLayoutProps) {
+  const navigate = useNavigate();
+  const [drawerOpen, setDrawerOpen] = React.useState(false);
+  const [page, setPage] = React.useState(1);
+  const { bookmarked, toggle: toggleBookmark } = useBookmark(questionId);
+
+  const { data: question, isLoading } = useQuery({
+    queryKey: ['question', questionId],
+    queryFn: () => questionsApi.getOne(questionId),
+    enabled: !!questionId,
+  });
+
+  const { data: attemptsData } = useQuery({
+    queryKey: ['attempts', questionId],
+    queryFn: () => attemptsApi.getByQuestion(questionId),
+    enabled: !!questionId,
+    refetchInterval: (data: any) => {
+      const hasScoring = data?.some?.((a: any) => a.status === 'SCORING');
+      return hasScoring ? 2000 : false;
+    },
+  });
+
+  const { data: questionList } = useQuery({
+    queryKey: ['questionList', question?.type, page],
+    queryFn: () => questionsApi.list({ type: question?.type, page, limit: 50 }),
+    enabled: !!question?.type,
+  });
+
+  const { data: prevQ } = useQuery({
+    queryKey: ['adjacent', question?.code, 'prev'],
+    queryFn: () => questionsApi.getAdjacent(question!.code, 'prev', question!.type),
+    enabled: !!question,
+  });
+
+  const { data: nextQ } = useQuery({
+    queryKey: ['adjacent', question?.code, 'next'],
+    queryFn: () => questionsApi.getAdjacent(question!.code, 'next', question!.type),
+    enabled: !!question,
+  });
+
+  if (isLoading) return (
+    <div className="flex items-center justify-center min-h-screen">
+      <div className="w-8 h-8 border-4 border-brand-yellow border-t-transparent rounded-full animate-spin" />
+    </div>
+  );
+
+  if (!question) return <div className="p-8 text-center text-gray-500">Question not found</div>;
+
+  const skillPath = question.skill.toLowerCase();
+  const attempts = attemptsData || [];
+
+  const DETERMINISTIC_TYPES = new Set([
+    'READING_MCQ_MULTIPLE_ANSWER', 'LISTENING_MCQ_MULTIPLE_ANSWER',
+    'READING_MCQ_SINGLE_ANSWER', 'LISTENING_MCQ_SINGLE_ANSWER',
+    'LISTENING_HIGHLIGHT_CORRECT_SUMMARY', 'LISTENING_SELECT_MISSING_WORD',
+    'READING_RE_ORDER_PARAGRAPH', 'LISTENING_HIGHLIGHT_INCORRECT_WORD',
+    'READING_FIB_R_W', 'READING_FIB_R', 'LISTENING_FIB_L', 'LISTENING_DICTATION',
+  ]);
+  const isDeterministic = DETERMINISTIC_TYPES.has(question.type);
+
+  const analysisRows = attempts.map((a: any) => ({
+    id: a.id,
+    timer: new Date(a.createdAt).toLocaleString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' }),
+    status: a.status,
+    score: isDeterministic ? undefined : a.totalScore,
+    feedback: isDeterministic ? a.feedback : undefined,
+    createdAt: a.createdAt,
+  }));
+
+  return (
+    <div className="min-h-screen bg-[#F7F6F3]">
+      {/* TOP NAV */}
+      <header className="bg-white border-b border-gray-100 px-6 h-14 flex items-center justify-between sticky top-0 z-30">
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => navigate(`/practice/${skillPath}`)}
+            className="flex items-center gap-1.5 text-sm font-semibold text-gray-500 hover:text-brand-black border border-gray-200 rounded-lg px-3 py-1.5 transition-all hover:border-gray-400"
+          >
+            ← Back
+          </button>
+          <div className="flex items-center gap-2">
+            <div className="w-7 h-7 bg-brand-black rounded-lg flex items-center justify-center text-brand-yellow text-xs font-black">
+              {question.skill[0]}
+            </div>
+            <div>
+              <p className="font-display font-bold text-sm text-gray-900 leading-none">
+                {QUESTION_TYPE_LABELS[question.type as keyof typeof QUESTION_TYPE_LABELS]}
+              </p>
+              <p className="text-[10px] text-gray-400">{question.skill} · AI Scoring</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <div className="text-xs font-semibold text-gray-400 bg-gray-100 px-3 py-1.5 rounded-lg">
+            {question.code}
+          </div>
+          <Button variant="ghost" size="sm" onClick={() => setDrawerOpen(true)}>
+            ☰ Question list
+          </Button>
+          <Button
+            variant="ghost" size="sm"
+            disabled={!prevQ}
+            onClick={() => prevQ && navigate(`/question/${prevQ.id}`)}
+          >
+            ← Previous
+          </Button>
+          <Button
+            variant="yellow" size="sm"
+            disabled={!nextQ}
+            onClick={() => nextQ && navigate(`/question/${nextQ.id}`)}
+          >
+            Next →
+          </Button>
+        </div>
+      </header>
+
+      {/* BODY */}
+      <div className="max-w-4xl mx-auto px-6 py-6 space-y-4">
+        {/* Question Card */}
+        <div className="card overflow-hidden">
+          {/* Question Header */}
+          <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 bg-brand-yellow rounded-xl flex items-center justify-center text-lg">🎓</div>
+              <div>
+                <p className="font-display font-bold text-base text-gray-900">{question.code}</p>
+                <p className="text-xs text-gray-400 mt-0.5 max-w-xl leading-relaxed">
+                  {getInstruction(question)}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              {question.suggestedAnswer && (
+                <Button variant="ghost" size="sm">🎧 Suggestion</Button>
+              )}
+              {question.tips && (
+                <Button variant="ghost" size="sm">💡 Tips & Sample</Button>
+              )}
+              {question.isRepeated && (
+                <span className="text-[10px] font-black px-2 py-1 bg-pink-500 text-white rounded uppercase tracking-wide">REPEATED</span>
+              )}
+              <button
+                onClick={toggleBookmark}
+                className={clsx(
+                  'w-8 h-8 rounded-lg border flex items-center justify-center transition-colors',
+                  bookmarked
+                    ? 'bg-brand-yellow border-brand-yellow text-brand-black'
+                    : 'border-gray-200 text-gray-400 hover:text-gray-700 hover:border-gray-400'
+                )}
+                title={bookmarked ? 'Bỏ bookmark' : 'Bookmark câu này'}
+              >
+                🔖
+              </button>
+            </div>
+          </div>
+
+          {/* Question Content - rendered by child */}
+          {children(question, attempts)}
+        </div>
+
+        {/* Analysis Section */}
+        <AnalysisTable rows={analysisRows} />
+      </div>
+
+      {/* Question List Drawer */}
+      <QuestionListDrawer
+        open={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
+        items={(questionList?.data || [])
+          .filter((q: any) => q.type !== 'SPEAKING_DESCRIBE_IMAGE' || !!q.imageUrl)
+          .map((q: any) => ({
+            id: q.id, code: q.code, title: q.title,
+            level: q.level, isTrending: q.isTrending, isRepeated: q.isRepeated,
+            userScore: q.userScore,
+          }))}
+        currentCode={question.code}
+        onSelect={(id) => navigate(`/question/${id}`)}
+        total={questionList?.total || 0}
+        page={page}
+        onPageChange={setPage}
+      />
+    </div>
+  );
+}
+
+function getInstruction(q: Question): string {
+  const instructions: Record<string, string> = {
+    SPEAKING_READ_ALOUD: `Look at the text below. In ${q.responseTime} seconds, you must read this text aloud as naturally and clearly as possible.`,
+    SPEAKING_REPEAT_SENTENCE: 'You will hear a sentence. Please repeat the sentence exactly as you hear it. You will hear the sentence only once.',
+    SPEAKING_DESCRIBE_IMAGE: `Look at the graph below. In ${q.prepTime} seconds, please speak into the microphone and describe in detail what the graph is showing. You will have ${q.responseTime} seconds to give your response.`,
+    SPEAKING_RETELL_LECTURE: `You will hear an Interview/Lecture. After listening to it, in ${q.prepTime} seconds, please speak into the microphone and retell what you have just heard from the lecture in your own words. You will have ${q.responseTime} seconds to give your response.`,
+    SPEAKING_ANSWER_SHORT_QUESTION: 'You will hear a question. Please give a simple and short answer. Often just one or a few words is enough.',
+    SPEAKING_SUMMARISE_GROUP_DISCUSSION: `You will hear three people having a discussion. When you hear the beep, summarize the whole discussion. You will have ${q.prepTime} seconds to prepare and 2 minutes to give your response.`,
+    SPEAKING_RESPOND_TO_SITUATION: `Listen to and read a description of situation. You will have ${q.prepTime} seconds to think about your answer. Then you will hear a beep. You have ${q.responseTime} seconds to answer the question.`,
+    WRITING_SUMMARIZE_WRITTEN_TEXT: 'Read the passage below and summarize it using one sentence. Type your response in the box at the bottom. You have 10 minutes to finish this task.',
+    WRITING_ESSAY: 'You will have 20 minutes to plan, write and revise an essay about the topic below. Your response will be judged on how well you develop a position, organize your ideas, present supporting details, and control the elements of standard written English.',
+    READING_FIB_R_W: 'Below is a text with blanks. Click on each blank, a list of choices will appear. Select the appropriate answer choice for each blank.',
+    READING_MCQ_MULTIPLE_ANSWER: 'Read the text and answer the question by selecting all the correct responses. You will need to select more than one response.',
+    READING_RE_ORDER_PARAGRAPH: 'The text boxes in the left panel have been placed in a random order. Restore the original order by dragging the text boxes from the left panel to the right panel.',
+    READING_FIB_R: 'In the text below some words are missing. Drag words from the box below to the appropriate place in the text. To undo an answer choice, drag the word back to the box below the text.',
+    READING_MCQ_SINGLE_ANSWER: 'Read the text and answer the multiple-choice question by selecting the correct response. Only one response is correct.',
+    LISTENING_SUMMARIZE_SPOKEN_TEXT: 'You will hear a short audio. Write a summary for a fellow student who was not present. You should write 50-70 words. You have 10 minutes to finish this task.',
+    LISTENING_MCQ_MULTIPLE_ANSWER: 'Listen to the recording and answer the question by selecting all the correct responses. You will need to select more than one response.',
+    LISTENING_FIB_L: 'You will hear a recording. Type the missing words in each blank.',
+    LISTENING_HIGHLIGHT_CORRECT_SUMMARY: 'You will hear a recording. Click on the paragraph that best relates to the recording.',
+    LISTENING_MCQ_SINGLE_ANSWER: 'Listen to the recording and answer the multiple-choice question by selecting the correct response. Only one response is correct.',
+    LISTENING_SELECT_MISSING_WORD: 'You will hear a recording of a lecture. At the end of the recording the last word or group of words has been replaced by a beep. Select the correct option to complete the recording.',
+    LISTENING_HIGHLIGHT_INCORRECT_WORD: 'You will hear a recording. Below is a transcription of the recording. Some words in the transcription differ from what the speaker(s) said. Please click on the words that are different.',
+    LISTENING_DICTATION: 'You will hear a sentence. Type the sentence in the box below exactly as you hear it. Write as much of the sentence as you can. You will hear the sentence only once.',
+  };
+  return instructions[q.type] || '';
+}
+

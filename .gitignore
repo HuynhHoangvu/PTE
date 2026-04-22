@@ -1,0 +1,67 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Python
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+*.so
+
+# Build output
+backend/dist/
+frontend/dist/
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Uploads (user-generated content, not code)
+backend/uploads/
+
+# Python scorer temp files
+python-scorer/__pycache__/
+python-scorer/venv/
+python-scorer/*.pyc
+
+# Chrome CDP profile (large browser data)
+chrome-cdp-profile/
+
+# Whisper model cache
+*.pt
+*.bin
+~/.cache/whisper/
+
+# TypeScript build info
+*.tsbuildinfo
+
+# Playwright
+playwright-report/
+test-results/
+
+# Claude settings (local only)
+.claude/

@@ -1,0 +1,17 @@
+node_modules
+npm-debug.log
+dist
+build
+.env
+.env.local
+.git
+.gitignore
+.DS_Store
+*.md
+uploads
+__pycache__
+.pytest_cache
+.venv
+venv
+.idea
+.vscode

@@ -1,0 +1,87 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * { box-sizing: border-box; }
+  body { font-family: 'Nunito', system-ui, sans-serif; background: #F7F6F3; color: #0E0E0E; }
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: #F1F1F1; }
+  ::-webkit-scrollbar-thumb { background: #D1D5DB; border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: #9CA3AF; }
+}
+
+@layer components {
+  .btn-yellow {
+    @apply bg-brand-yellow text-brand-black font-bold px-4 py-2 rounded-lg
+           hover:bg-brand-yellow-deep transition-all duration-150
+           shadow-[0_2px_8px_rgba(245,197,24,0.35)]
+           hover:shadow-[0_4px_12px_rgba(245,197,24,0.45)];
+  }
+  .btn-orange {
+    @apply bg-brand-orange text-white font-bold px-4 py-2 rounded-lg
+           hover:bg-brand-orange-deep transition-all duration-150;
+  }
+  .btn-dark {
+    @apply bg-brand-black text-brand-yellow font-bold px-4 py-2 rounded-lg
+           hover:bg-brand-dark2 transition-all duration-150;
+  }
+  .btn-ghost {
+    @apply border border-gray-200 bg-white text-gray-600 font-bold px-4 py-2 rounded-lg
+           hover:border-gray-400 hover:text-gray-900 transition-all duration-150;
+  }
+  .card {
+    @apply bg-white border border-gray-100 rounded-xl shadow-sm;
+  }
+  .tag-ai {
+    @apply text-[10px] font-bold px-2 py-0.5 rounded bg-brand-black text-brand-yellow tracking-wide;
+  }
+  .tag-hint {
+    @apply text-[10px] font-bold px-2 py-0.5 rounded bg-brand-orange-light text-brand-orange-deep;
+  }
+  .tag-expl {
+    @apply text-[10px] font-bold px-2 py-0.5 rounded bg-indigo-50 text-indigo-700;
+  }
+  .tag-repeated {
+    @apply text-[10px] font-bold px-2 py-0.5 rounded bg-pink-100 text-pink-700;
+  }
+  .tag-trending {
+    @apply text-[10px] font-bold px-2 py-0.5 rounded bg-orange-100 text-orange-700;
+  }
+  .nav-item {
+    @apply flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13.5px] font-semibold
+           text-gray-400 cursor-pointer transition-all duration-150 hover:bg-white/[0.06] hover:text-gray-300;
+  }
+  .nav-item-active {
+    @apply bg-brand-yellow text-brand-black;
+  }
+  .analysis-table th {
+    @apply text-[11px] font-bold text-gray-400 uppercase tracking-wider text-left py-2 px-4 bg-gray-50;
+  }
+  .analysis-table td {
+    @apply text-[13px] py-3 px-4 border-b border-gray-50;
+  }
+}
+
+/* Waveform animation bars */
+.wave-bar { animation: wave 1.2s ease-in-out infinite; }
+.wave-bar:nth-child(2) { animation-delay: 0.1s; }
+.wave-bar:nth-child(3) { animation-delay: 0.2s; }
+.wave-bar:nth-child(4) { animation-delay: 0.3s; }
+.wave-bar:nth-child(5) { animation-delay: 0.4s; }
+.wave-bar:nth-child(6) { animation-delay: 0.5s; }
+.wave-bar:nth-child(7) { animation-delay: 0.6s; }
+.wave-bar:nth-child(8) { animation-delay: 0.7s; }
+
+@keyframes wave { 0%,100% { height: 8px; } 50% { height: 28px; } }
+
+.wave-bar-active { animation: waveActive 0.4s ease-in-out infinite alternate; }
+.wave-bar-active:nth-child(2) { animation-delay: 0.07s; }
+.wave-bar-active:nth-child(3) { animation-delay: 0.14s; }
+.wave-bar-active:nth-child(4) { animation-delay: 0.21s; }
+.wave-bar-active:nth-child(5) { animation-delay: 0.28s; }
+.wave-bar-active:nth-child(6) { animation-delay: 0.35s; }
+.wave-bar-active:nth-child(7) { animation-delay: 0.42s; }
+.wave-bar-active:nth-child(8) { animation-delay: 0.49s; }
+
+@keyframes waveActive { 0% { height: 6px; } 100% { height: 36px; } }
