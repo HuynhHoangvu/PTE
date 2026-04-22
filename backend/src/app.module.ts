@@ -9,6 +9,7 @@ import { AttemptsModule } from './attempts/attempts.module';
 import { MockTestModule } from './mock-test/mock-test.module';
 import { AiScoringModule } from './ai-scoring/ai-scoring.module';
 import { StorageModule } from './common/storage/storage.module';
+import { AutoSeedService } from './database/auto-seed.service';
 import { User } from './users/user.entity';
 import { Question } from './questions/question.entity';
 import { Attempt } from './attempts/attempt.entity';
@@ -32,6 +33,7 @@ import { MockTestAttempt } from './mock-test/mock-test-attempt.entity';
       retryAttempts: 20,
       retryDelay: 3000,
     }),
+    TypeOrmModule.forFeature([User]),
     StorageModule,
     AuthModule,
     UsersModule,
@@ -41,5 +43,6 @@ import { MockTestAttempt } from './mock-test/mock-test-attempt.entity';
     AiScoringModule,
   ],
   controllers: [AppController],
+  providers: [AutoSeedService],
 })
 export class AppModule {}
