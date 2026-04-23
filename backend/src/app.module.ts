@@ -9,6 +9,9 @@ import { AttemptsModule } from './attempts/attempts.module';
 import { MockTestModule } from './mock-test/mock-test.module';
 import { AiScoringModule } from './ai-scoring/ai-scoring.module';
 import { StorageModule } from './common/storage/storage.module';
+import { AdminModule } from './admin/admin.module';
+import { PaymentsModule } from './payments/payments.module';
+import { Payment } from './payments/payment.entity';
 import { AutoSeedService } from './database/auto-seed.service';
 import { User } from './users/user.entity';
 import { Question } from './questions/question.entity';
@@ -26,7 +29,7 @@ import { MockTestAttempt } from './mock-test/mock-test-attempt.entity';
       username: process.env.DB_USERNAME || 'postgres',
       password: process.env.DB_PASSWORD || 'password',
       database: process.env.DB_DATABASE || 'fly_edu',
-      entities: [User, Question, Attempt, MockTest, MockTestAttempt],
+      entities: [User, Question, Attempt, MockTest, MockTestAttempt, Payment],
       synchronize: true,
       logging: false,
       ssl: process.env.DATABASE_URL && !process.env.DATABASE_URL.includes('.internal') ? { rejectUnauthorized: false } : false,
@@ -41,6 +44,8 @@ import { MockTestAttempt } from './mock-test/mock-test-attempt.entity';
     AttemptsModule,
     MockTestModule,
     AiScoringModule,
+    AdminModule,
+    PaymentsModule,
   ],
   controllers: [AppController],
   providers: [AutoSeedService],

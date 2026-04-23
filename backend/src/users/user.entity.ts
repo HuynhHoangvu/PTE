@@ -11,6 +11,11 @@ export enum UserPlan {
   PREMIUM = 'premium',
 }
 
+export enum UserRole {
+  USER = 'user',
+  ADMIN = 'admin',
+}
+
 @Entity('users')
 export class User {
   @PrimaryGeneratedColumn('uuid')
@@ -29,6 +34,9 @@ export class User {
   @Column({ type: 'enum', enum: UserPlan, default: UserPlan.FREE })
   plan: UserPlan;
 
+  @Column({ type: 'enum', enum: UserRole, default: UserRole.USER })
+  role: UserRole;
+
   @Column({ nullable: true })
   avatarUrl: string;
 
@@ -37,6 +45,9 @@ export class User {
 
   @Column({ nullable: true, type: 'timestamp' })
   lastActiveAt: Date;
+
+  @Column({ nullable: true, type: 'timestamp' })
+  premiumUntil: Date;
 
   @Column({ default: 0 })
   totalAttempts: number;

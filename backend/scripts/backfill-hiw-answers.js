@@ -1,19 +1,43 @@
 /* eslint-disable no-console */
 /**
- * HIW Backfill: So sanh Content (da cao) voi Transcript (Whisper) de tim tu sai.
- * Goi /find-incorrect-words tren python-scorer (Gemini) thay vi so sanh tuyen tinh.
+ * HIW Backfill: Whisper (/transcribe) -> so sanh voi content -> python-scorer /find-incorrect-words
+ * (mac dinh canh tu bang difflib; Gemini chi khi diff rong hoac HIW_FIND_WORDS_USE_GEMINI=1 tren scorer).
  * Usage:
  *   node scripts/backfill-hiw-answers.js              -- chi xu ly chua co answer
  *   node scripts/backfill-hiw-answers.js --force       -- ghi de tat ca
  *   node scripts/backfill-hiw-answers.js --dry-run     -- xem ket qua, KHONG ghi DB
  *   node scripts/backfill-hiw-answers.js --code HIW0001 -- chi xu ly 1 cau cu the
+ *   node scripts/backfill-hiw-answers.js --code HIW0002 --force  -- ghi de dap an 1 cau (can python-scorer + /transcribe + /find-incorrect-words)
+ *
+ * Dap an da kiem tay (khong goi Gemini/Whisper): scripts/hiw-gold-overrides.json
+ *   Moi key la ma cau (HIW0001, ...); value la mang cac tu SAI tren transcript — so luong tuy bai (2, 5, 7...).
+ *   Chi key khop /^HIW\\d+$/i + mang string moi duoc dung; key khac (vd. "_readme") bo qua.
  */
 
 const path = require("path");
+const fs = require("fs");
 const { Client } = require("pg");
 const dotenv = require("dotenv");
 
 dotenv.config({ path: path.resolve(__dirname, "../.env") });
+
+function loadGoldOverrides() {
+  const p = path.join(__dirname, "hiw-gold-overrides.json");
+  if (!fs.existsSync(p)) return {};
+  try {
+    const raw = JSON.parse(fs.readFileSync(p, "utf8"));
+    const out = {};
+    for (const [k, v] of Object.entries(raw)) {
+      if (!/^HIW\d+$/i.test(k)) continue;
+      if (!Array.isArray(v) || !v.every((x) => typeof x === "string")) continue;
+      out[k.toUpperCase()] = v;
+    }
+    return out;
+  } catch (e) {
+    console.warn("Khong doc duoc hiw-gold-overrides.json:", e.message);
+    return {};
+  }
+}
 
 const PYTHON_SCORER_URL = (process.env.PYTHON_SCORER_URL || "http://127.0.0.1:8001").replace(/\/$/, "");
 const FORCE = process.argv.includes("--force");
@@ -99,24 +123,36 @@ async function main() {
   if (DRY_RUN) console.log("⚠️  DRY-RUN mode — khong ghi vao DB\n");
   console.log(`Found ${rows.length} HIW questions, processing ${toProcess.length} (force=${FORCE}, dry-run=${DRY_RUN})\n`);
 
+  const goldOverrides = loadGoldOverrides();
+  if (Object.keys(goldOverrides).length) {
+    console.log(`Gold overrides: ${Object.keys(goldOverrides).join(", ")}\n`);
+  }
+
   let ok = 0, fail = 0;
 
   for (const row of toProcess) {
     try {
       console.log(`Processing ${row.code}...`);
 
-      const buf = await withRetry(() => fetchAudioBytes(row.audioUrl));
-      const transcript = await withRetry(() => transcribeAudio(buf, 'audio/mpeg'));
+      const codeKey = String(row.code || "").toUpperCase();
+      let incorrectWords = goldOverrides[codeKey];
+      if (Array.isArray(incorrectWords) && incorrectWords.length) {
+        console.log(`  Source: hiw-gold-overrides.json (${incorrectWords.length} words)`);
+        console.log(`  Words: [${incorrectWords.join(", ")}]`);
+      } else {
+        const buf = await withRetry(() => fetchAudioBytes(row.audioUrl));
+        const transcript = await withRetry(() => transcribeAudio(buf, "audio/mpeg"));
 
-      if (!transcript) {
-        console.warn(`  SKIP ${row.code}: empty transcript`);
-        continue;
+        if (!transcript) {
+          console.warn(`  SKIP ${row.code}: empty transcript`);
+          continue;
+        }
+
+        incorrectWords = await withRetry(() => findIncorrectWordsViaGemini(row.content, transcript));
+
+        console.log(`  Transcript: "${transcript.slice(0, 120)}..."`);
+        console.log(`  Words (${incorrectWords.length}): [${incorrectWords.join(", ")}]`);
       }
-
-      const incorrectWords = await withRetry(() => findIncorrectWordsViaGemini(row.content, transcript));
-
-      console.log(`  Transcript: "${transcript.slice(0, 120)}..."`);
-      console.log(`  Words (${incorrectWords.length}): [${incorrectWords.join(", ")}]`);
 
       if (DRY_RUN) {
         console.log(`  [DRY-RUN] Bo qua ghi DB`);

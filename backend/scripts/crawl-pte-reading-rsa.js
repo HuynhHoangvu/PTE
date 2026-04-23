@@ -1,4 +1,29 @@
 /* eslint-disable no-console */
+/**
+ * Reading — Multiple Choice, Choose Single Answer (mã câu RSA… trên PTE Magic).
+ *
+ * Chạy từ thư mục `backend/` (đã có `.env` trỏ Postgres):
+ *   node scripts/crawl-pte-reading-rsa.js
+ *
+ * ── Chrome CDP (dùng Chrome thật đã đăng nhập, tránh mất session) ──
+ * 1) Tắt hết cửa sổ Chrome.
+ * 2) Mở Chrome với cổng debug + profile riêng (cookie nằm trong thư mục này):
+ *    PowerShell ví dụ:
+ *      & "$env:ProgramFiles\Google\Chrome\Application\chrome.exe" `
+ *        --remote-debugging-port=9222 `
+ *        --user-data-dir="$env:LOCALAPPDATA\pte-crawl-chrome"
+ *    (Đổi đường dẫn `user-data-dir` tùy ý — đó là “profile” của bạn, không có flag tên cdp-profile.)
+ * 3) Trong Chrome: đăng nhập ptemagic.com, mở đúng trang Reading → MCQ Single Answer (URL giống TARGET_URL).
+ * 4) Terminal backend:
+ *      set PTE_USE_CHROME_CDP=1
+ *      node scripts/crawl-pte-reading-rsa.js
+ *    (Linux/mac: export PTE_USE_CHROME_CDP=1)
+ * Tuỳ chọn: PTE_CHROME_CDP_URL (mặc định http://127.0.0.1:9222), PTE_MAX_ITEMS
+ *
+ * Script ghi DB: code, content (passage), title (stem MCQ), options [{label,text}].
+ * Trên PTE Magic, h6 trong .MuiCard-root là mã RSAxxxx — stem nằm trong khối trước .MuiRadioGroup-root.
+ * Đáp án đúng không lấy từ DOM ở đây — dùng `node scripts/backfill-reading-answers-ai.js` (GEMINI_API_KEY).
+ */
 const path = require("path");
 const readline = require("readline");
 const dotenv = require("dotenv");
@@ -33,25 +58,54 @@ function sleep(ms) {
 
 async function extractRsaData(page) {
   return page.evaluate(() => {
-    // Tìm code RSAxxxx
-    const bodyText = document.body.innerText || "";
-    const codeMatch = bodyText.match(/(RSA\d{4,})/i);
-    const code = codeMatch ? codeMatch[1].toUpperCase() : null;
+    const card =
+      document.querySelector(".MuiPaper-root.MuiCard-root") ||
+      document.querySelector(".MuiCard-root");
+
+    let code = null;
+    const h6 = card?.querySelector("h6");
+    if (h6) {
+      const m = h6.innerText.trim().match(/^(RSA\d{4,})$/i);
+      if (m) code = m[1].toUpperCase();
+    }
+    if (!code) {
+      const bodyText = document.body.innerText || "";
+      const codeMatch = bodyText.match(/(RSA\d{4,})/i);
+      code = codeMatch ? codeMatch[1].toUpperCase() : null;
+    }
 
     if (!code) return { code: null };
 
-    // Tìm đoạn văn (Passage)
     const passageNode = document.querySelector(".MuiStack-root p.MuiTypography-paragraph");
     const passage = passageNode ? passageNode.innerText.trim() : "";
 
-    // Tìm câu hỏi (Title) - h6 bên trong stack chứa options (.css-gsjzcg)
-    const questionNode =
-      document.querySelector(".css-gsjzcg h6") ||
-      document.querySelector(".MuiStack-root h6:not(.MuiTypography-h5)") ||
-      document.querySelector("h6");
-    const title = questionNode ? questionNode.innerText.trim() : "";
+    const instructionRe =
+      /Read the text and answer|Only one response is correct|more than one response|selecting the correct response/i;
+    let title = "";
+    const radio = card?.querySelector(".MuiRadioGroup-root");
+    if (card && radio) {
+      let el = radio.previousElementSibling;
+      while (el) {
+        const ps = el.querySelectorAll?.("p") || [];
+        const chunks = ps.length
+          ? Array.from(ps).map((p) => p.innerText.trim()).filter(Boolean)
+          : (el.innerText || "")
+              .trim()
+              .split("\n")
+              .map((s) => s.trim())
+              .filter(Boolean);
+        for (const t of chunks) {
+          if (!t || t.length < 12) continue;
+          if (instructionRe.test(t)) continue;
+          if (/^(RSA|LSA|RMQA|RB)\d{4,}$/i.test(t)) continue;
+          if (passage && t === passage) continue;
+          if (passage && passage.length > 80 && t.length >= passage.length * 0.9) continue;
+          if (t.length > title.length) title = t;
+        }
+        el = el.previousElementSibling;
+      }
+    }
 
-    // Tìm danh sách lựa chọn (Radio Group)
     const optionRows = Array.from(document.querySelectorAll(".MuiRadioGroup-root .MuiStack-root"));
     const options = optionRows.map(row => {
       const label = row.querySelector("p:nth-of-type(1)")?.innerText.trim() || "";

@@ -1,4 +1,10 @@
 /* eslint-disable no-console */
+/**
+ * Listening — Multiple Choice, Choose Single Answer (LISTENING_MCQ_L_SINGLE_ANSWER).
+ * DOM PTE Magic: `.MuiCard-root h6` = mã LSAxxxx; stem MCQ = khối chữ trước `.MuiRadioGroup-root` (không dùng h6 làm title).
+ * CDP + Chrome profile: giống `crawl-pte-reading-rsa.js` (PTE_USE_CHROME_CDP, PTE_CHROME_CDP_URL,
+ * Chrome với --remote-debugging-port=9222 và --user-data-dir=...).
+ */
 const path = require("path");
 const readline = require("readline");
 const dotenv = require("dotenv");
@@ -33,22 +39,55 @@ function sleep(ms) {
 
 async function extractLsaData(page) {
   return page.evaluate(() => {
-    // Tìm code LSAxxxx
-    const bodyText = document.body.innerText || "";
-    const codeMatch = bodyText.match(/(LSA\d{4,})/i);
-    const code = codeMatch ? codeMatch[1].toUpperCase() : null;
+    const card =
+      document.querySelector(".MuiPaper-root.MuiCard-root") ||
+      document.querySelector(".MuiCard-root");
+
+    /** PTE Magic: #root … .MuiCard-root … h6 = mã LSAxxxx, KHÔNG phải stem MCQ. */
+    let code = null;
+    const h6 = card?.querySelector("h6");
+    if (h6) {
+      const m = h6.innerText.trim().match(/^(LSA\d{4,})$/i);
+      if (m) code = m[1].toUpperCase();
+    }
+    if (!code) {
+      const bodyText = document.body.innerText || "";
+      const codeMatch = bodyText.match(/(LSA\d{4,})/i);
+      code = codeMatch ? codeMatch[1].toUpperCase() : null;
+    }
 
     if (!code) return { code: null };
 
-    // Tìm thẻ audio
     const audioNode = document.querySelector("audio");
     const audioUrl = audioNode ? audioNode.getAttribute("src") : null;
 
-    // Tìm câu hỏi (Title)
-    const questionNode = document.querySelector("h6.MuiTypography-subtitle1") || document.querySelector("h6");
-    const title = questionNode ? questionNode.innerText.trim() : "";
+    // Stem: đoạn văn trong card, trước nhóm radio, không phải instruction / mã câu
+    const instructionRe =
+      /Listen to the recording|Only one response is correct|selecting the correct response/i;
+    let title = "";
+    const radio = card?.querySelector(".MuiRadioGroup-root");
+    if (card && radio) {
+      let el = radio.previousElementSibling;
+      while (el) {
+        const ps = el.querySelectorAll?.("p") || [];
+        const chunks = ps.length
+          ? Array.from(ps).map((p) => p.innerText.trim()).filter(Boolean)
+          : (el.innerText || "")
+              .trim()
+              .split("\n")
+              .map((s) => s.trim())
+              .filter(Boolean);
+        for (const t of chunks) {
+          if (!t || t.length < 12) continue;
+          if (instructionRe.test(t)) continue;
+          if (/^(LSA|RSA|RMQA|RB)\d{4,}$/i.test(t)) continue;
+          if (/^(Repeated|Trending)$/i.test(t)) continue;
+          if (t.length > title.length) title = t;
+        }
+        el = el.previousElementSibling;
+      }
+    }
 
-    // Tìm danh sách lựa chọn (Radio Group)
     const optionRows = Array.from(document.querySelectorAll(".MuiRadioGroup-root .MuiStack-root"));
     const options = optionRows.map(row => {
       const label = row.querySelector("p:nth-of-type(1)")?.innerText.trim() || "";

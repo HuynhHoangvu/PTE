@@ -4,11 +4,12 @@ import { MockTestController } from './mock-test.controller';
 import { MockTestService } from './mock-test.service';
 import { MockTest, MockTestAttempt } from './mock-test.entity';
 import { Question } from '../questions/question.entity';
+import { Attempt } from '../attempts/attempt.entity';
 import { AiScoringModule } from '../ai-scoring/ai-scoring.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([MockTest, MockTestAttempt, Question]),
+    TypeOrmModule.forFeature([MockTest, MockTestAttempt, Question, Attempt]),
     AiScoringModule,
   ],
   controllers: [MockTestController],

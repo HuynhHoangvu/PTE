@@ -134,9 +134,13 @@ export class QuestionsService {
       order: { code: 'ASC' },
       select: ['id', 'code'],
     });
-    const idx = questions.findIndex((q) => q.code === currentCode);
-    if (direction === 'prev' && idx > 0) return questions[idx - 1];
-    if (direction === 'next' && idx < questions.length - 1) return questions[idx + 1];
+    // Sắp xếp tự nhiên (RFIB2 trước RFIB10) — order SQL theo chuỗi không đủ với mã số trong code.
+    const sorted = [...questions].sort((a, b) =>
+      a.code.localeCompare(b.code, undefined, { numeric: true, sensitivity: 'base' }),
+    );
+    const idx = sorted.findIndex((q) => q.code === currentCode);
+    if (direction === 'prev' && idx > 0) return sorted[idx - 1];
+    if (direction === 'next' && idx < sorted.length - 1) return sorted[idx + 1];
     return null;
   }
 }

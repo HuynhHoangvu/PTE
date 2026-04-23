@@ -48,7 +48,7 @@ export class AiScoringService {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
-        signal: AbortSignal.timeout(30000),
+        signal: AbortSignal.timeout(60000),
       });
       if (!res.ok) return null;
       const data: any = await res.json();
@@ -77,7 +77,7 @@ export class AiScoringService {
             audio_base64: base64Audio,
             audio_mime: 'audio/webm',
           }),
-          signal: AbortSignal.timeout(30000),
+          signal: AbortSignal.timeout(60000),
         });
         if (res.ok) {
           const data: any = await res.json();
@@ -96,7 +96,7 @@ export class AiScoringService {
       const model = this.genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
       const base64Audio = audioBuffer.toString('base64');
       const timeoutPromise = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error('Transcription timeout after 30s')), 30000),
+        setTimeout(() => reject(new Error('Transcription timeout after 60s')), 60000),
       );
       const result = await Promise.race([
         model.generateContent([
@@ -330,18 +330,82 @@ Return ONLY valid JSON: {"content": number, "development": number, "grammar": nu
   }
 
   // ── Reading/Listening: Fill in Blanks ────────────────────────────────────
-  private async scoreFIB(question: Question, selectedAnswers: Record<string, string>) {
-    const correct = question.correctAnswer as Record<string, string>;
-    if (!correct || !selectedAnswers) {
+  private fibKeyOrder(keys: string[]): string[] {
+    return [...keys].sort((a, b) => {
+      const na = parseInt(a, 10);
+      const nb = parseInt(b, 10);
+      if (!Number.isNaN(na) && !Number.isNaN(nb) && String(na) === a && String(nb) === b) return na - nb;
+      return a.localeCompare(b);
+    });
+  }
+
+  /** Chuẩn hóa đáp án đúng + bài làm: mảng vs object, key blank_0 vs "1". */
+  private normalizeFIBPair(question: Question, selectedAnswers: any): {
+    correct: Record<string, string>;
+    selected: Record<string, string>;
+  } | null {
+    let rawCorrect = question.correctAnswer as any;
+    if (rawCorrect == null) return null;
+
+    let correct: Record<string, string> = {};
+    if (Array.isArray(rawCorrect)) {
+      rawCorrect.forEach((v: unknown, i: number) => {
+        correct[String(i + 1)] = typeof v === 'string' ? v : String(v ?? '');
+      });
+    } else if (typeof rawCorrect === 'object') {
+      correct = { ...rawCorrect };
+    } else {
+      return null;
+    }
+
+    const orderedKeys = this.fibKeyOrder(Object.keys(correct));
+    if (orderedKeys.length === 0) return null;
+
+    let selected: Record<string, string> = {};
+
+    if (Array.isArray(selectedAnswers)) {
+      orderedKeys.forEach((k, i) => {
+        selected[k] = String(selectedAnswers[i] ?? '').trim();
+      });
+    } else if (selectedAnswers && typeof selectedAnswers === 'object') {
+      selected = { ...selectedAnswers };
+      const blankRe = /^blank_(\d+)$/i;
+      const keys = Object.keys(selected);
+      if (keys.some((k) => blankRe.test(k))) {
+        const remapped: Record<string, string> = {};
+        keys.forEach((k) => {
+          const m = k.match(blankRe);
+          if (m) {
+            const idx = parseInt(m[1], 10);
+            const target = orderedKeys[idx] ?? String(idx + 1);
+            remapped[target] = String(selected[k] ?? '').trim();
+          } else {
+            remapped[k] = String(selected[k] ?? '').trim();
+          }
+        });
+        selected = remapped;
+      }
+    } else {
+      return null;
+    }
+
+    return { correct, selected };
+  }
+
+  private async scoreFIB(question: Question, selectedAnswers: any) {
+    const pair = this.normalizeFIBPair(question, selectedAnswers);
+    if (!pair) {
       return { totalScore: 0, scoreBreakdown: {}, feedback: 'No answers provided' };
     }
+    const { correct, selected } = pair;
 
     let correctCount = 0;
     const total = Object.keys(correct).length;
     const details: Record<string, boolean> = {};
 
     for (const [key, val] of Object.entries(correct)) {
-      const isCorrect = selectedAnswers[key]?.toLowerCase().trim() === val.toLowerCase().trim();
+      const isCorrect =
+        (selected[key] || '').toLowerCase().trim() === (val || '').toLowerCase().trim();
       details[key] = isCorrect;
       if (isCorrect) correctCount++;
     }
@@ -375,8 +439,9 @@ Return ONLY valid JSON: {"content": number, "development": number, "grammar": nu
   }
 
   // ── MCQ Single ────────────────────────────────────────────────────────────
-  private async scoreMCQSingle(question: Question, selectedAnswer: string) {
-    const isCorrect = selectedAnswer === question.correctAnswer;
+  private async scoreMCQSingle(question: Question, selectedAnswer: any) {
+    const sel = Array.isArray(selectedAnswer) ? selectedAnswer[0] : selectedAnswer;
+    const isCorrect = sel === question.correctAnswer;
     const totalScore = isCorrect ? 90 : 0;
     return {
       totalScore,
@@ -407,8 +472,15 @@ Return ONLY valid JSON: {"content": number, "development": number, "grammar": nu
 
   // ── Highlight Incorrect Words ─────────────────────────────────────────────
   private async scoreHighlightIncorrect(question: Question, selectedWords: string[]) {
-    const correct = new Set<string>(question.correctAnswer || []);
-    const selected = new Set<string>(selectedWords || []);
+    const norm = (w: string) => w.toLowerCase().replace(/[^a-z0-9]/gi, '');
+    const rawCor = question.correctAnswer || [];
+    const correctArr = Array.isArray(rawCor) ? rawCor : [];
+    const correct = new Set<string>(
+      correctArr.map((w: string) => norm(String(w))).filter(Boolean),
+    );
+    const selected = new Set<string>(
+      (selectedWords || []).map((w) => norm(String(w))).filter(Boolean),
+    );
     let score = 0;
     for (const w of selected) { if (correct.has(w)) score++; else score--; }
     const totalScore = Math.max(0, Math.round((score / Math.max(correct.size, 1)) * 90));
@@ -470,7 +542,7 @@ Return ONLY JSON: {"content": n, "grammar": n, "vocabulary": n, "spelling": n, "
     });
 
     const timeoutPromise = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error('Gemini API timeout after 30s')), 30000),
+      setTimeout(() => reject(new Error('Gemini API timeout after 60s')), 60000),
     );
 
     const result = await Promise.race([model.generateContent(prompt), timeoutPromise]);

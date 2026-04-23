@@ -2,7 +2,7 @@ import { Injectable, OnApplicationBootstrap, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import * as bcrypt from 'bcrypt';
-import { User, UserPlan } from '../users/user.entity';
+import { User, UserPlan, UserRole } from '../users/user.entity';
 
 @Injectable()
 export class AutoSeedService implements OnApplicationBootstrap {
@@ -21,7 +21,14 @@ export class AutoSeedService implements OnApplicationBootstrap {
       const email = 'admin@flyedu.com';
       const existing = await this.userRepo.findOne({ where: { email } });
       if (existing) {
-        this.logger.log('Admin account already exists, skipped');
+        // Ensure existing admin has the admin role
+        if (existing.role !== UserRole.ADMIN) {
+          existing.role = UserRole.ADMIN;
+          await this.userRepo.save(existing);
+          this.logger.log('Admin role updated for existing account');
+        } else {
+          this.logger.log('Admin account already exists, skipped');
+        }
         return;
       }
       const hashed = await bcrypt.hash('Fly2026$$', 10);
@@ -30,6 +37,7 @@ export class AutoSeedService implements OnApplicationBootstrap {
         fullName: 'Admin',
         password: hashed,
         plan: UserPlan.PREMIUM,
+        role: UserRole.ADMIN,
       }));
       this.logger.log('Admin account created: admin@flyedu.com / Fly2026$$');
     } catch (err) {
