@@ -16,8 +16,7 @@ declare global {
   }
 }
 /**
- * Khối đăng nhập Google (GIS) — luôn hiển thị trên màn hình.
- * Có `VITE_GOOGLE_CLIENT_ID` → nút Google thật; chưa có → hộp hướng dẫn cấu hình.
+ * Khối đăng nhập Google (GIS). Chỉ hiển thị khi build có `VITE_GOOGLE_CLIENT_ID`.
  */
 export function GoogleSignIn({
   onError,
@@ -75,20 +74,13 @@ export function GoogleSignIn({
     };
   }, [clientId, loginWithGoogle, navigate, onError]);
 
+  if (!clientId) {
+    return null;
+  }
+
   return (
     <div className="mt-6 border-t border-gray-200/90 pt-6">
-      {clientId ? (
-        <div ref={divRef} className="flex min-h-[48px] justify-center" />
-      ) : (
-        <div className="rounded-xl border border-dashed border-amber-300 bg-white/70 px-3 py-3 text-center text-[11px] leading-relaxed text-amber-900">
-          <p className="mb-1 font-bold">Chưa gắn Client ID</p>
-          <p>
-            Thêm <code className="rounded bg-amber-100/90 px-1 font-mono text-[10px]">VITE_GOOGLE_CLIENT_ID</code>{' '}
-            (build frontend) và <code className="rounded bg-amber-100/90 px-1 font-mono text-[10px]">GOOGLE_CLIENT_ID</code>{' '}
-            (backend) cùng một Web Client ID từ Google Cloud Console → Authorized JavaScript origins gồm URL trang này.
-          </p>
-        </div>
-      )}
+      <div ref={divRef} className="flex min-h-[48px] justify-center" />
     </div>
   );
 }
