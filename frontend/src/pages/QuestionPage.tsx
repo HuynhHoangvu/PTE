@@ -69,10 +69,14 @@ function QuestionBody({ question, attempts }: { question: Question; attempts: an
       type === 'LISTENING_HIGHLIGHT_CORRECT_SUMMARY' ||
       type === 'LISTENING_SELECT_MISSING_WORD') {
     const withAudio = type.startsWith('LISTENING_');
-    // Listening types: ẩn content/title (transcript/tiêu đề) — chỉ nghe rồi chọn
-    const qForMCQ = withAudio
-      ? { ...question, content: undefined, title: undefined }
-      : question;
+    // Ẩn stem/transcript cho HCS & SMW; MC Single (LSA…) giữ title = stem giống PTE Magic (.MuiCard h6 = code, đoạn dưới = câu hỏi).
+    const hideListeningStem =
+      type === 'LISTENING_HIGHLIGHT_CORRECT_SUMMARY' ||
+      type === 'LISTENING_SELECT_MISSING_WORD';
+    const qForMCQ =
+      withAudio && hideListeningStem
+        ? { ...question, content: undefined, title: undefined }
+        : question;
     return (
       <div className="px-5 py-5 space-y-4">
         {withAudio && <AudioPlayer src={question.audioUrl} countdownSeconds={7} showSpeedControl />}

@@ -18,7 +18,7 @@ build/
 # Build output
 backend/dist/
 frontend/dist/
-
+stitch-skills-main
 # Environment files
 .env
 .env.local
@@ -42,6 +42,10 @@ Thumbs.db
 
 # Uploads (user-generated content, not code)
 backend/uploads/
+
+# DB sync temp files (never commit)
+backend/fly_local_to_railway.tmp.dump
+backend/fly_local_backup.sql
 
 # Python scorer temp files
 python-scorer/__pycache__/

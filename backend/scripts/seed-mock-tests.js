@@ -2,10 +2,10 @@
  * Tạo mock test ngẫu nhiên từ câu hỏi trong DB
  *
  * Sử dụng:
- *   node scripts/seed-mock-tests.js                        # tạo 5 đề, prefix MOCK
- *   node scripts/seed-mock-tests.js --count 10             # tạo 10 đề
- *   node scripts/seed-mock-tests.js --prefix PTE --count 3 # code: PTE_001, PTE_002, ...
- *   node scripts/seed-mock-tests.js --force                # overwrite nếu code đã tồn tại
+ *   node scripts/seed-mock-tests.js                          # tạo 5 đề, prefix MOCK
+ *   node scripts/seed-mock-tests.js --count 8 --prefix FLY_RND  # 8 đề ngẫu nhiên, mã FLY_RND_001…
+ *   node scripts/seed-mock-tests.js --prefix PTE --count 3   # code: PTE_001, PTE_002, ...
+ *   node scripts/seed-mock-tests.js --force                  # overwrite nếu code đã tồn tại
  *
  * Env vars:
  *   DATABASE_URL  → Railway production URL
@@ -30,6 +30,13 @@ function parseArgs(argv) {
 }
 
 const randInt = (min, max) => min + Math.floor(Math.random() * (max - min + 1));
+
+/** Khớp backend questions.service: R&W FIB chỉ RWFIB*, Reading FIB chỉ RFIB* */
+function typeWhereSql(type) {
+  if (type === 'READING_FIB_R_W') return `type = $1 AND code ILIKE 'RWFIB%'`;
+  if (type === 'READING_FIB_R') return `type = $1 AND code ILIKE 'RFIB%'`;
+  return 'type = $1';
+}
 
 // ── PTE Format template ───────────────────────────────────────────────────────
 // Số câu: random trong [min, max] cho mỗi dạng bài
@@ -92,9 +99,10 @@ async function buildSections(client, usedIds) {
     const excludeList = usedIds.size > 0 ? [...usedIds] : ['00000000-0000-0000-0000-000000000000'];
     const placeholders = excludeList.map((_, i) => `$${i + 2}`).join(', ');
 
+    const tw = typeWhereSql(slot.type);
     const res = await client.query(
       `SELECT id FROM questions
-       WHERE type = $1 AND id NOT IN (${placeholders})
+       WHERE ${tw} AND id NOT IN (${placeholders})
        ORDER BY RANDOM()
        LIMIT ${n}`,
       [slot.type, ...excludeList]
@@ -103,7 +111,7 @@ async function buildSections(client, usedIds) {
     if (res.rows.length === 0) {
       // Fallback: allow reuse if not enough questions
       const fallback = await client.query(
-        `SELECT id FROM questions WHERE type = $1 ORDER BY RANDOM() LIMIT ${n}`,
+        `SELECT id FROM questions WHERE ${tw} ORDER BY RANDOM() LIMIT ${n}`,
         [slot.type]
       );
       res.rows.push(...fallback.rows);

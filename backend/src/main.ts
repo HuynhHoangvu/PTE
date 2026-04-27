@@ -13,13 +13,15 @@ async function bootstrap() {
   // Serve uploaded audio files
   app.useStaticAssets(join(process.cwd(), 'uploads'), { prefix: '/uploads' });
 
-  // CORS — support comma-separated list of origins, e.g. "http://localhost:5173,https://app.example.com"
+  // CORS — FRONTEND_URL (comma-separated) + Capacitor WebView origins
   const corsOrigins = (process.env.FRONTEND_URL || 'http://localhost:5173')
     .split(',')
     .map((o) => o.trim())
     .filter(Boolean);
+  const capacitorOrigins = ['https://localhost', 'http://localhost', 'capacitor://localhost'];
+  const merged = [...new Set([...corsOrigins, ...capacitorOrigins])];
   app.enableCors({
-    origin: corsOrigins.length === 1 ? corsOrigins[0] : corsOrigins,
+    origin: merged.length === 1 ? merged[0] : merged,
     credentials: true,
   });
 

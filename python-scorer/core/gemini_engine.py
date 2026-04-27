@@ -1,10 +1,15 @@
+from pathlib import Path
+from dotenv import load_dotenv
+
+# Đồng bộ với main: đọc đúng python-scorer/.env trước khi tạo client (module import có thể chạy trước main).
+_SCORER_ROOT = Path(__file__).resolve().parent.parent
+load_dotenv(_SCORER_ROOT / ".env", override=True)
+
 import os
 from typing import List, Optional
-from dotenv import load_dotenv
 from google import genai
 from google.genai import types as genai_types
 
-load_dotenv()
 from core.utils import logger, _parse_json
 from models import ScoreResult
 

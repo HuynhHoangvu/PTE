@@ -1,7 +1,15 @@
 import axios from 'axios';
 
+/** Dev: Vite proxy → `/api`. Mobile/production: `VITE_API_BASE_URL` = API host without path, e.g. `https://api.example.com` */
+function apiBaseURL(): string {
+  const raw = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim();
+  const base = raw?.replace(/\/$/, '') ?? '';
+  if (base) return `${base}/api`;
+  return '/api';
+}
+
 const api = axios.create({
-  baseURL: '/api',
+  baseURL: apiBaseURL(),
   timeout: 30000,
 });
 
@@ -32,6 +40,8 @@ export const authApi = {
     api.post('/auth/register', data).then((r) => r.data),
   login: (data: { email: string; password: string }) =>
     api.post('/auth/login', data).then((r) => r.data),
+  googleLogin: (data: { idToken: string }) =>
+    api.post('/auth/google', data).then((r) => r.data),
   getMe: () => api.get('/auth/me').then((r) => r.data),
 };
 
@@ -93,6 +103,30 @@ export const mockTestApi = {
     api.patch(`/mock-tests/attempts/${attemptId}/progress`, data).then((r) => r.data),
   submitAttempt: (attemptId: string) =>
     api.post(`/mock-tests/attempts/${attemptId}/submit`).then((r) => r.data),
+};
+
+// ── Payments ──────────────────────────────────────────────────────────────
+export const paymentsApi = {
+  createPayment: (planIndex: number) =>
+    api.post('/payments/create', { planIndex }).then((r) => r.data),
+  getMyPayments: () => api.get('/payments/my').then((r) => r.data),
+  adminListAll: () => api.get('/payments/admin/all').then((r) => r.data),
+  adminVerify: (id: string) =>
+    api.patch(`/payments/admin/${id}/verify`).then((r) => r.data),
+  adminReject: (id: string, note?: string) =>
+    api.patch(`/payments/admin/${id}/reject`, { note }).then((r) => r.data),
+};
+
+// ── Admin ─────────────────────────────────────────────────────────────────
+export const adminApi = {
+  getStats: () => api.get('/admin/stats').then((r) => r.data),
+  listUsers: (params?: { search?: string; page?: number; limit?: number }) =>
+    api.get('/admin/users', { params }).then((r) => r.data),
+  getUser: (id: string) => api.get(`/admin/users/${id}`).then((r) => r.data),
+  updateUser: (id: string, data: { plan?: string; role?: string; fullName?: string }) =>
+    api.patch(`/admin/users/${id}`, data).then((r) => r.data),
+  getUserMockTests: (id: string) =>
+    api.get(`/admin/users/${id}/mock-tests`).then((r) => r.data),
 };
 
 export default api;

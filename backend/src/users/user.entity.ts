@@ -27,7 +27,11 @@ export class User {
   @Column()
   fullName: string;
 
-  @Column()
+  /** Google subject (sub); đăng nhập Google */
+  @Column({ nullable: true, unique: true })
+  googleId: string;
+
+  @Column({ nullable: true })
   @Exclude()
   password: string;
 

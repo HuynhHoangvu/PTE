@@ -17,7 +17,7 @@ export function Button({
   ...props
 }: BtnProps) {
   const base =
-    "inline-flex items-center justify-center gap-2 font-bold rounded-lg transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed";
+    "inline-flex items-center justify-center gap-2 font-bold rounded-lg transition-all duration-150 active:scale-[0.98] motion-reduce:active:scale-100 disabled:opacity-50 disabled:cursor-not-allowed";
   const sizes = {
     sm: "px-3 py-1.5 text-xs",
     md: "px-4 py-2 text-sm",
@@ -95,7 +95,7 @@ export function ProgressBar({
     orange:   "bg-brand-orange",
     black:    "bg-brand-black",
     green:    "bg-green-500",
-    gradient: "bg-gradient-to-r from-brand-gold to-brand-orange",
+    gradient: "bg-gradient-to-r from-brand-gold to-brand-gold-bright",
   };
   return (
     <div className="h-1.5 bg-gray-200 rounded-full overflow-hidden">
@@ -171,7 +171,7 @@ export function AudioPlayer({
       {countdown > 0 && (
         <p className="text-sm text-gray-500 mb-2">
           Beginning in{" "}
-          <span className="text-brand-orange font-bold">{fmt(countdown)}</span>{" "}
+          <span className="text-brand-gold font-bold">{fmt(countdown)}</span>{" "}
           second(s)
         </p>
       )}
@@ -251,13 +251,13 @@ export function AudioPlayer({
 // ── Waveform ──────────────────────────────────────────────────────────────
 export function Waveform({ active }: { active: boolean }) {
   return (
-    <div className="flex items-center justify-center gap-1 h-10">
+    <div className="flex items-center justify-center gap-0.5 sm:gap-1 h-8 sm:h-10">
       {Array.from({ length: 8 }).map((_, i) => (
         <div
           key={i}
           className={clsx(
             "w-1 rounded-full transition-all",
-            active ? "wave-bar-active bg-brand-yellow" : "wave-bar bg-gray-300",
+            active ? "wave-bar-active bg-brand-gold" : "wave-bar bg-gray-300",
           )}
           style={{ height: "8px", animationDelay: `${i * 0.07}s` }}
         />
@@ -300,11 +300,11 @@ export function ScorePanel({
           : "Cần cải thiện";
   const gradeColor =
     percentage >= 79
-      ? "text-green-600"
+      ? "text-amber-900"
       : percentage >= 65
-        ? "text-brand-orange"
+        ? "text-amber-800"
         : percentage >= 50
-          ? "text-brand-yellow-deep"
+          ? "text-amber-700"
           : "text-red-500";
   const topPercentile = percentage >= 79 ? "5" : percentage >= 65 ? "20" : "50";
 
@@ -328,14 +328,14 @@ export function ScorePanel({
     <div className="card p-4">
       {/* Overall */}
       <div className="flex items-center gap-4 bg-brand-gold-light rounded-xl p-3 mb-4">
-        <div className="w-14 h-14 rounded-full bg-brand-black flex flex-col items-center justify-center flex-shrink-0 shadow-lg">
-          <span className="text-brand-yellow font-display font-bold text-xl leading-none">
+        <div className="w-14 h-14 rounded-full bg-brand-charcoal flex flex-col items-center justify-center flex-shrink-0 shadow-lg">
+          <span className="text-white font-display font-bold text-xl leading-none">
             {totalScore}
           </span>
-          <span className="text-[9px] text-yellow-400/70">/{maxScore}</span>
+          <span className="text-[9px] text-brand-gold-light/95">/{maxScore}</span>
         </div>
         <div>
-          <p className="text-xs font-bold text-brand-yellow-deep mb-0.5">
+          <p className="text-xs font-bold text-brand-charcoal mb-0.5">
             Tổng điểm AI
           </p>
           <p
@@ -561,7 +561,7 @@ export function AnalysisTable({
   return (
     <div className="card overflow-hidden">
       <div className="flex items-center gap-2 px-4 py-3 border-b border-gray-100">
-        <div className="w-7 h-7 rounded-lg bg-brand-orange-light flex items-center justify-center text-sm">
+        <div className="w-7 h-7 rounded-lg bg-brand-gold-light flex items-center justify-center text-sm">
           📊
         </div>
         <div>
@@ -606,7 +606,7 @@ export function AnalysisTable({
                     {r.status}
                   </span>
                 </td>
-                <td className="font-bold text-brand-orange">
+                <td className="font-bold text-brand-gold">
                   {r.feedback
                     ? <span className="text-xs font-semibold">{r.feedback}</span>
                     : (r.score != null ? r.score : "—")}
@@ -615,7 +615,7 @@ export function AnalysisTable({
                   {onView && r.status === "SCORED" && (
                     <button
                       onClick={() => onView(r.id)}
-                      className="text-brand-orange text-xs font-bold hover:underline"
+                      className="text-brand-gold text-xs font-bold hover:underline"
                     >
                       👁 Xem
                     </button>
@@ -683,11 +683,11 @@ export function QuestionListDrawer({
           </button>
         </div>
 
-        {/* Search + Filter */}
+        {/* Search */}
         <div className="px-5 py-3 border-b border-gray-100 flex items-center gap-3">
           <div className="flex-1 flex items-center gap-2 border border-gray-200 rounded-lg px-3 py-2">
             <svg
-              className="w-4 h-4 text-gray-400"
+              className="w-4 h-4 text-gray-400 shrink-0"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -698,35 +698,20 @@ export function QuestionListDrawer({
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search..."
-              className="flex-1 text-sm outline-none"
+              placeholder="Tìm theo mã hoặc tiêu đề..."
+              className="flex-1 text-sm outline-none min-w-0"
             />
           </div>
-          <Button variant="ghost" size="sm">
-            🔍 Filter
-          </Button>
-          <div className="text-xs text-gray-500">{total} câu</div>
+          <div className="text-xs text-gray-500 shrink-0">{total} câu</div>
         </div>
 
-        {/* View mode */}
-        <div className="px-5 py-2 border-b border-gray-100 flex items-center gap-4 text-sm font-semibold text-gray-500">
-          <span className="flex items-center gap-1.5 cursor-pointer text-brand-black bg-brand-yellow-light px-3 py-1 rounded-lg">
-            ⭐ All questions
-          </span>
-          <span className="cursor-pointer hover:text-gray-800">
-            🔁 Repeated
-          </span>
-          <span className="cursor-pointer hover:text-gray-800">
-            🔖 Bookmarked
-          </span>
-        </div>
-
-        {/* Table */}
+        {/* List */}
         <div className="flex-1 overflow-auto">
           <table className="w-full text-sm">
             <thead className="sticky top-0 bg-gray-50">
               <tr>
-                <th className="text-left text-[11px] font-bold text-gray-400 uppercase py-2 px-3 w-12">
+                {/* Score — hidden on mobile */}
+                <th className="hidden sm:table-cell text-left text-[11px] font-bold text-gray-400 uppercase py-2 px-3 w-12">
                   Score
                 </th>
                 <th className="text-left text-[11px] font-bold text-gray-400 uppercase py-2 px-3 w-24">
@@ -735,10 +720,11 @@ export function QuestionListDrawer({
                 <th className="text-left text-[11px] font-bold text-gray-400 uppercase py-2 px-3">
                   Title
                 </th>
-                <th className="text-left text-[11px] font-bold text-gray-400 uppercase py-2 px-3 w-20">
+                {/* Level + Tag — hidden on mobile */}
+                <th className="hidden sm:table-cell text-left text-[11px] font-bold text-gray-400 uppercase py-2 px-3 w-20">
                   Level
                 </th>
-                <th className="text-left text-[11px] font-bold text-gray-400 uppercase py-2 px-3 w-28">
+                <th className="hidden sm:table-cell text-left text-[11px] font-bold text-gray-400 uppercase py-2 px-3 w-28">
                   Tag
                 </th>
                 <th className="w-10"></th>
@@ -753,20 +739,37 @@ export function QuestionListDrawer({
                     onClose();
                   }}
                   className={clsx(
-                    "border-b border-gray-50 cursor-pointer hover:bg-brand-yellow-soft transition-colors",
-                    item.code === currentCode && "bg-brand-yellow-light",
+                    "border-b border-gray-50 cursor-pointer hover:bg-brand-gold-soft/80 transition-colors",
+                    item.code === currentCode && "bg-brand-gold-light",
                   )}
                 >
-                  <td className="py-2.5 px-3 text-gray-400 text-xs">
+                  <td className="hidden sm:table-cell py-2.5 px-3 text-gray-400 text-xs">
                     {item.userScore || 0}
                   </td>
-                  <td className="py-2.5 px-3 font-bold text-brand-orange text-xs">
+                  <td className="py-2.5 px-3 font-bold text-brand-gold text-xs whitespace-nowrap">
                     {item.code}
                   </td>
-                  <td className="py-2.5 px-3 text-gray-800 text-xs">
-                    {item.title || item.code}
+                  <td className="py-2.5 px-3 text-gray-800 text-xs max-w-[140px] sm:max-w-none">
+                    <span className="line-clamp-2">{item.title || item.code}</span>
+                    {/* Level + tags shown inline on mobile */}
+                    <div className="flex items-center gap-1 mt-0.5 sm:hidden">
+                      <span
+                        className={clsx(
+                          "text-[10px] font-bold px-1.5 py-0.5 rounded",
+                          item.level === "Easy"
+                            ? "bg-green-100 text-green-700"
+                            : item.level === "Hard"
+                              ? "bg-red-100 text-red-700"
+                              : "bg-orange-100 text-orange-700",
+                        )}
+                      >
+                        {item.level}
+                      </span>
+                      {item.isRepeated && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-pink-50 text-pink-700">Rep</span>}
+                      {item.isTrending && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-orange-50 text-orange-700">Hot</span>}
+                    </div>
                   </td>
-                  <td className="py-2.5 px-3">
+                  <td className="hidden sm:table-cell py-2.5 px-3">
                     <span
                       className={clsx(
                         "text-[10px] font-bold px-1.5 py-0.5 rounded",
@@ -780,7 +783,7 @@ export function QuestionListDrawer({
                       {item.level}
                     </span>
                   </td>
-                  <td className="py-2.5 px-3">
+                  <td className="hidden sm:table-cell py-2.5 px-3">
                     <div className="flex gap-1 flex-wrap">
                       {item.isTrending && (
                         <Badge color="orange">Trending</Badge>
@@ -788,7 +791,7 @@ export function QuestionListDrawer({
                       {item.isRepeated && <Badge color="pink">Repeated</Badge>}
                     </div>
                   </td>
-                  <td className="py-2.5 px-3 text-gray-300 hover:text-brand-orange">
+                  <td className="py-2.5 px-3 text-gray-300 hover:text-brand-gold">
                     🔖
                   </td>
                 </tr>

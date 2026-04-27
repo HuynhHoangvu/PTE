@@ -37,16 +37,19 @@ export class AdminController {
     const take = Math.min(parseInt(limit) || 20, 100);
     const skip = (parseInt(page) - 1) * take;
 
-    const where: any = {};
-    if (search) where.email = Like(`%${search}%`);
-
-    const [users, total] = await this.userRepo.findAndCount({
-      where,
-      select: ['id', 'email', 'fullName', 'plan', 'role', 'streakDays', 'totalAttempts', 'averageScore', 'createdAt', 'lastActiveAt'],
-      order: { createdAt: 'DESC' },
+    const listOpts = {
+      select: ['id', 'email', 'fullName', 'plan', 'role', 'streakDays', 'totalAttempts', 'averageScore', 'createdAt', 'lastActiveAt'] as (keyof User)[],
+      order: { createdAt: 'DESC' as const },
       take,
       skip,
-    });
+    };
+
+    const [users, total] = search
+      ? await this.userRepo.findAndCount({
+          ...listOpts,
+          where: [{ email: Like(`%${search}%`) }, { fullName: Like(`%${search}%`) }],
+        })
+      : await this.userRepo.findAndCount({ ...listOpts });
 
     return { users, total, page: parseInt(page), limit: take };
   }

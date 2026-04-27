@@ -19,20 +19,38 @@ import { Attempt } from './attempts/attempt.entity';
 import { MockTest } from './mock-test/mock-test.entity';
 import { MockTestAttempt } from './mock-test/mock-test-attempt.entity';
 
+const databaseUrl = process.env.DATABASE_URL?.trim();
+const isLocalPostgres = (): boolean => {
+  if (databaseUrl) {
+    try {
+      const h = new URL(databaseUrl).hostname;
+      return h === 'localhost' || h === '127.0.0.1';
+    } catch {
+      return false;
+    }
+  }
+  const h = (process.env.DB_HOST || 'localhost').toLowerCase();
+  return h === 'localhost' || h === '127.0.0.1';
+};
+
 @Module({
   imports: [
     TypeOrmModule.forRoot({
       type: 'postgres',
-      url: process.env.DATABASE_URL,
+      url: databaseUrl || undefined,
       host: process.env.DB_HOST || 'localhost',
       port: parseInt(process.env.DB_PORT) || 5432,
       username: process.env.DB_USERNAME || 'postgres',
-      password: process.env.DB_PASSWORD || 'password',
+      /** `??` giữ mật khẩu rỗng nếu .env có DB_PASSWORD= (trust); không có biến → fallback dev */
+      password: process.env.DB_PASSWORD ?? 'password',
       database: process.env.DB_DATABASE || 'fly_edu',
       entities: [User, Question, Attempt, MockTest, MockTestAttempt, Payment],
       synchronize: true,
       logging: false,
-      ssl: process.env.DATABASE_URL && !process.env.DATABASE_URL.includes('.internal') ? { rejectUnauthorized: false } : false,
+      ssl:
+        databaseUrl && !databaseUrl.includes('.internal') && !isLocalPostgres()
+          ? { rejectUnauthorized: false }
+          : false,
       retryAttempts: 20,
       retryDelay: 3000,
     }),

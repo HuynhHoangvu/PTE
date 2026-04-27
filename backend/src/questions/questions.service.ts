@@ -30,6 +30,12 @@ export class QuestionsService {
 
     if (skill) qb.andWhere('q.skill = :skill', { skill });
     if (type) qb.andWhere('q.type = :type', { type });
+    /** RFIB* = Reading FIB (kéo thả), RWFIB* = R&W FIB (dropdown) — lọc theo mã tránh trùng type trong DB làm lệch drawer */
+    if (type === QuestionType.READING_FIB_R_W) {
+      qb.andWhere('q.code ILIKE :rwfibCode', { rwfibCode: 'RWFIB%' });
+    } else if (type === QuestionType.READING_FIB_R) {
+      qb.andWhere('q.code ILIKE :rfibCode', { rfibCode: 'RFIB%' });
+    }
     if (level) qb.andWhere('q.level = :level', { level });
     if (isTrending !== undefined) qb.andWhere('q.isTrending = :isTrending', { isTrending });
     if (isRepeated !== undefined) qb.andWhere('q.isRepeated = :isRepeated', { isRepeated });
@@ -90,14 +96,16 @@ export class QuestionsService {
 
   async getSkillProgress(skill: QuestionSkill, userId: string) {
     const questions = await this.questionRepo.find({ where: { skill } });
-    const attempted = await this.attemptRepo
-      .createQueryBuilder('a')
-      .select('DISTINCT a.questionId')
-      .where('a.userId = :userId', { userId })
-      .andWhere('a.status = :status', { status: 'SCORED' })
-      .getRawMany();
-
-    const attemptedIds = new Set(attempted.map((a) => a.questionId));
+    const qids = questions.map((q) => q.id);
+    /** Có attempt (mọi trạng thái) = đã làm — gồm SCORING/ERROR để không tụt về 0 khi chấm chậm */
+    let attemptedIds = new Set<string>();
+    if (qids.length) {
+      const rows = await this.attemptRepo.find({
+        where: { userId, questionId: In(qids) },
+        select: ['questionId'],
+      });
+      attemptedIds = new Set(rows.map((r) => r.questionId));
+    }
 
     const byType: Record<string, { total: number; done: number }> = {};
     for (const q of questions) {
@@ -134,8 +142,13 @@ export class QuestionsService {
       order: { code: 'ASC' },
       select: ['id', 'code'],
     });
+    const fibFiltered = questions.filter((q) => {
+      if (type === QuestionType.READING_FIB_R_W) return /^RWFIB/i.test(q.code);
+      if (type === QuestionType.READING_FIB_R) return /^RFIB/i.test(q.code);
+      return true;
+    });
     // Sắp xếp tự nhiên (RFIB2 trước RFIB10) — order SQL theo chuỗi không đủ với mã số trong code.
-    const sorted = [...questions].sort((a, b) =>
+    const sorted = [...fibFiltered].sort((a, b) =>
       a.code.localeCompare(b.code, undefined, { numeric: true, sensitivity: 'base' }),
     );
     const idx = sorted.findIndex((q) => q.code === currentCode);

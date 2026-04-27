@@ -40,6 +40,13 @@ npm run dev
 # → http://localhost:5173
 ```
 
+### 4. Android (Google Play) — Capacitor
+
+- Cấu hình API production: copy `frontend/.env.example` → `.env.production`, đặt `VITE_API_BASE_URL=https://your-api-host` (không có `/` cuối).
+- Build + đồng bộ: `cd frontend && npm run cap:sync`
+- Mở Android Studio: `npm run cap:open` → tạo **AAB** (Build → Generate Signed Bundle).
+- Chi tiết Play Console, Data safety, ký app: xem [docs/GOOGLE_PLAY_STORE.md](docs/GOOGLE_PLAY_STORE.md).
+
 ## API Endpoints
 
 ### Auth

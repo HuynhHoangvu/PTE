@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Fly PTE</string>
+    <string name="title_activity_main">Fly PTE</string>
+    <string name="package_name">com.flyedu.pte</string>
+    <string name="custom_url_scheme">com.flyedu.pte</string>
+</resources>

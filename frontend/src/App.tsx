@@ -34,6 +34,12 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+/** Unknown paths: dashboard if logged in, else login */
+function CatchAllRedirect() {
+  const token = useAuthStore((s) => s.token);
+  return <Navigate to={token ? "/dashboard" : "/login"} replace />;
+}
+
 export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
@@ -56,7 +62,6 @@ export default function App() {
               </PublicRoute>
             }
           />
-
           {/* Protected */}
           <Route
             path="/dashboard"
@@ -141,7 +146,7 @@ export default function App() {
 
           {/* Default */}
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
-          <Route path="*" element={<Navigate to="/dashboard" replace />} />
+          <Route path="*" element={<CatchAllRedirect />} />
         </Routes>
       </BrowserRouter>
     </QueryClientProvider>

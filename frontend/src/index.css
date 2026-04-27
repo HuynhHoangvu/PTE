@@ -4,15 +4,17 @@
 
 @layer base {
   * { box-sizing: border-box; }
+
   body {
     font-family: 'Nunito', system-ui, sans-serif;
-    background: #F8F7F4;
+    background: linear-gradient(175deg, #fffdf8 0%, #fefce8 50%, #fdf6d9 100%);
+    background-attachment: fixed;
     color: #0A0A12;
   }
   ::-webkit-scrollbar { width: 5px; height: 5px; }
   ::-webkit-scrollbar-track { background: transparent; }
-  ::-webkit-scrollbar-thumb { background: #D4C9A0; border-radius: 4px; }
-  ::-webkit-scrollbar-thumb:hover { background: #C8952A; }
+  ::-webkit-scrollbar-thumb { background: #f5e0a8; border-radius: 4px; }
+  ::-webkit-scrollbar-thumb:hover { background: #e4a808; }
 }
 
 @layer components {
@@ -47,16 +49,31 @@
 
   /* ── Cards ───────────────────────────────────────────────────── */
   .card {
-    @apply bg-white border border-gray-100 rounded-2xl shadow-card;
+    @apply bg-white border border-gray-100 rounded-2xl shadow-card
+           transition-[box-shadow,transform,border-color] duration-200 ease-out;
   }
   .card-dark {
     @apply bg-brand-dark2 border border-brand-dark3 rounded-2xl;
   }
 
+  /* Practice / question screens — mobile padding + thanh điều hướng cố định (PracticeLayout pb lớn) */
+  .practice-body {
+    @apply px-3 py-3 sm:px-5 sm:py-5 space-y-3 sm:space-y-4;
+  }
+  .practice-body-plain {
+    @apply px-3 py-3 sm:px-5 sm:py-5;
+  }
+  .practice-prose {
+    @apply text-[15px] sm:text-base leading-snug sm:leading-relaxed text-gray-800;
+  }
+  .practice-passage-scroll {
+    @apply bg-gray-50 rounded-xl border border-gray-200 p-3 sm:p-4 max-h-[40vh] sm:max-h-52 md:max-h-60 overflow-y-auto;
+  }
+
   /* ── Tags / Badges ───────────────────────────────────────────── */
   .tag-ai {
-    @apply text-[10px] font-bold px-2 py-0.5 rounded-md
-           bg-brand-black text-brand-gold tracking-wide;
+    @apply text-[10px] font-bold px-2 py-0.5 rounded-md tracking-wide
+           bg-brand-charcoal text-brand-gold-bright;
   }
   .tag-hint {
     @apply text-[10px] font-bold px-2 py-0.5 rounded-md
@@ -94,21 +111,27 @@
     @apply text-[13px] py-3 px-4 border-b border-gray-50;
   }
 
-  /* ── Gold shimmer text ───────────────────────────────────────── */
+  /* ── Shimmer chữ trên nền than / vàng đậm ─ */
   .text-gold-gradient {
-    background: linear-gradient(90deg, #C8952A, #F0D060, #C8952A);
+    background: linear-gradient(90deg, #f2ee8c, #ffffff, #ffea80);
     background-size: 200% auto;
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
   }
   .text-gold-gradient-animate {
-    background: linear-gradient(90deg, #C8952A, #F0D060, #C8952A);
+    background: linear-gradient(90deg, #fef9c3, #ffffff, #fdd52f, #fef9c3);
     background-size: 200% auto;
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
     animation: shimmer 2.5s linear infinite;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .text-gold-gradient-animate {
+      animation: none;
+      background-position: center;
+    }
   }
 
   /* ── Stat card ───────────────────────────────────────────────── */

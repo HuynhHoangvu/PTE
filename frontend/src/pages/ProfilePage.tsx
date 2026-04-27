@@ -54,14 +54,14 @@ export default function ProfilePage() {
 
   return (
     <MainLayout>
-      <div className="min-h-screen bg-[#F7F6F3]">
+      <div className="min-h-screen bg-brand-cream">
         {/* Header */}
         <div className="bg-white border-b border-gray-100 px-8 h-14 flex items-center justify-between sticky top-0 z-30">
           <h1 className="font-display font-black text-lg">Hồ sơ cá nhân</h1>
           <Button variant="yellow" size="sm" onClick={() => setEditing(true)}>✏️ Chỉnh sửa</Button>
         </div>
 
-        <div className="px-8 py-6 max-w-4xl mx-auto space-y-6">
+        <div className="px-8 py-6 max-w-5xl mx-auto space-y-6">
           {/* Profile Card */}
           <div className="card p-6">
             <div className="flex items-start gap-6">

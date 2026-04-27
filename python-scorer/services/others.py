@@ -1,4 +1,7 @@
 import json as _json
+import os
+import re as _re
+import difflib
 from models import QuestionData, ScoreResult
 from core.gemini_engine import _gemini_client, _FLASH, _get_config
 
@@ -148,35 +151,66 @@ def score_dictation(q: QuestionData, text_answer: str) -> ScoreResult:
     )
 
 
-async def find_incorrect_words(content: str, transcript: str) -> list:
-    """HIW: dung Gemini so sanh content (co tu sai) voi transcript (dung) de tim cac tu bi thay the."""
-    opt_str = ""
-    prompt = f"""You are helping score a PTE "Highlight Incorrect Words" question.
+def _hiw_word_tokens(text: str):
+    """(normalized_key, original_token) for each whitespace token — key dung de so sanh."""
+    out = []
+    for raw in (text or "").split():
+        orig = raw.strip()
+        if not orig:
+            continue
+        key = _re.sub(r"[^\w]", "", orig.lower())
+        if not key:
+            continue
+        out.append((key, orig))
+    return out
 
-In this task, a TRANSCRIPTION of a lecture is shown to the student, but 5-7 words have been secretly swapped with wrong words.
-The AUDIO TRANSCRIPT is what the speaker actually said (auto-transcribed by Whisper — may have minor mishearings).
 
-TRANSCRIPTION (shown to student, contains substituted wrong words):
+def find_incorrect_words_diff(content: str, transcript: str) -> list:
+    """
+    HIW: can bang tu Whisper (transcript) voi van ban hien thi (content).
+    Token nao tren content nam trong cum 'replace' / 'insert' so voi transcript thi la tu sai can highlight.
+    """
+    b_toks = _hiw_word_tokens(content)
+    a_toks = _hiw_word_tokens(transcript or "")
+    if not b_toks:
+        return []
+    if not a_toks:
+        return []
+
+    a_keys = [t[0] for t in a_toks]
+    b_keys = [t[0] for t in b_toks]
+    b_orig = [t[1] for t in b_toks]
+
+    sm = difflib.SequenceMatcher(a=a_keys, b=b_keys, autojunk=False)
+    out = []
+    for tag, _i1, _i2, j1, j2 in sm.get_opcodes():
+        if tag == "equal":
+            continue
+        if tag in ("replace", "insert"):
+            out.extend(b_orig[j1:j2])
+    return out
+
+
+async def _find_incorrect_words_gemini(content: str, transcript: str) -> list:
+    """Fallback: Gemini so sanh content vs transcript."""
+    prompt = f"""You are helping build the answer key for a PTE Academic "Highlight Incorrect Words" (HIW) task.
+
+The student sees a TRANSCRIPTION on screen. A few words in it were replaced so they do NOT match what the speaker said.
+The AUDIO TRANSCRIPT below is an automatic transcription (Whisper) of the recording — it can have small errors, homophones, or missing punctuation.
+
+TRANSCRIPTION (shown on screen — may contain deliberate wrong words; copy spellings from here for your answer list):
 \"\"\"{content}\"\"\"
 
-AUDIO TRANSCRIPT (what was actually spoken):
+AUDIO TRANSCRIPT (what was spoken, per Whisper):
 \"\"\"{transcript[:2000]}\"\"\"
 
-Your task — use TWO methods to find all substituted words:
+Rules (precision over recall):
+- Walk the passage in order. Flag a word (or short phrase as printed on screen, e.g. "one hundred") ONLY when the TRANSCRIPTION clearly disagrees with the AUDIO TRANSCRIPT at that spot (substitution), not when Whisper likely mis-heard the same intended word.
+- Do NOT pad the list to any target length. Real items may have only 2–4 wrong words, or more — return exactly what clearly mismatches, nothing extra.
+- Do NOT use "semantic plausibility" to invent errors: if both strings align for that token, do not flag it.
+- Return ONLY a JSON array of strings — each string must match the on-screen word/phrase exactly as it appears in the TRANSCRIPTION. No markdown, no explanation.
 
-METHOD 1 — Direct comparison:
-Compare the two texts word by word. Flag content words (nouns, verbs, adjectives, adverbs) that appear in the TRANSCRIPTION but differ from the AUDIO TRANSCRIPT.
-Ignore: articles (a/an/the), minor punctuation gaps, filler words, number format differences (5 vs five).
-
-METHOD 2 — Semantic plausibility check:
-Even if the transcript SEEMS to agree with the transcription, check: does each content word make natural sense in context?
-For example: "showed up by 2000%" sounds wrong — the natural phrase is "shot up by 2000%". Flag "showed" even if the transcript says "showed".
-Apply this to verbs, adjectives, and nouns that feel oddly chosen or semantically off.
-
-Combine both methods. Expect 5-7 substituted words total.
-Return ONLY a JSON array of the substituted words exactly as they appear in the TRANSCRIPTION, no explanation.
-
-Example output: ["presents", "money", "stimulate", "every", "huge", "showed"]"""
+Example output: ["west", "east"]"""
 
     response = _gemini_client.models.generate_content(
         model=_FLASH, contents=prompt, config=_get_config(temperature=0.1)
@@ -186,6 +220,33 @@ Example output: ["presents", "money", "stimulate", "every", "huge", "showed"]"""
     if start >= 0 and end > start:
         return _json.loads(text[start:end])
     return []
+
+
+async def find_incorrect_words(content: str, transcript: str) -> list:
+    """
+    HIW: mac dinh can bang tu (Whisper vs content) bang difflib.
+    - HIW_FIND_WORDS_USE_GEMINI=1: chi dung Gemini (hanh vi cu).
+    - HIW_FIND_WORDS_DIFF_ONLY=1: chi diff, khong goi Gemini (ke ca khi diff rong).
+    - Mac dinh: co ket qua diff thi tra diff; diff rong thi thu Gemini (neu co key).
+    """
+    force_gemini = os.getenv("HIW_FIND_WORDS_USE_GEMINI", "").strip().lower() in ("1", "true", "yes")
+    diff_only = os.getenv("HIW_FIND_WORDS_DIFF_ONLY", "").strip().lower() in ("1", "true", "yes")
+
+    diff_words = find_incorrect_words_diff(content, transcript or "")
+
+    if force_gemini:
+        return await _find_incorrect_words_gemini(content, transcript or "")
+
+    if diff_words:
+        return diff_words
+
+    if diff_only:
+        return diff_words
+
+    try:
+        return await _find_incorrect_words_gemini(content, transcript or "")
+    except Exception:
+        return diff_words
 
 
 async def pick_smw_answer(transcript: str, content: str, options: list) -> str:

@@ -50,7 +50,7 @@ export default function MockTestResultPage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-[#F7F6F3] flex items-center justify-center">
+      <div className="min-h-screen bg-brand-cream flex items-center justify-center">
         <div className="w-10 h-10 border-4 border-brand-yellow border-t-transparent rounded-full animate-spin" />
       </div>
     );
@@ -58,7 +58,7 @@ export default function MockTestResultPage() {
 
   if (!attempt) {
     return (
-      <div className="min-h-screen bg-[#F7F6F3] flex items-center justify-center">
+      <div className="min-h-screen bg-brand-cream flex items-center justify-center">
         <div className="text-center">
           <p className="text-4xl mb-3">😕</p>
           <p className="font-bold text-gray-700">Không tìm thấy kết quả</p>
@@ -84,7 +84,7 @@ export default function MockTestResultPage() {
   const mockTestTitle = attempt.mockTest?.title || 'Mock Test';
 
   return (
-    <div className="min-h-screen bg-[#F7F6F3]">
+    <div className="min-h-screen bg-brand-cream">
       {/* Header */}
       <header className="bg-white border-b border-gray-100 px-8 h-14 flex items-center justify-between sticky top-0 z-30">
         <div className="flex items-center gap-2">
@@ -95,7 +95,7 @@ export default function MockTestResultPage() {
         <Button variant="ghost" size="sm" onClick={() => navigate('/mock-test')}>← Về danh sách</Button>
       </header>
 
-      <div className="max-w-2xl mx-auto px-6 py-8 space-y-6">
+      <div className="max-w-4xl mx-auto px-6 sm:px-8 py-8 space-y-6">
         {/* Pass/Fail Banner */}
         <div className={clsx(
           'rounded-2xl px-7 py-6 flex items-center justify-between',

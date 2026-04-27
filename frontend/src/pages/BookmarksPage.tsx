@@ -40,7 +40,7 @@ export default function BookmarksPage() {
 
   return (
     <MainLayout>
-      <div className="min-h-screen bg-[#F7F6F3]">
+      <div className="min-h-screen bg-brand-cream">
         {/* Header */}
         <div className="bg-white border-b border-gray-100 px-8 h-14 flex items-center justify-between sticky top-0 z-30">
           <div className="flex items-center gap-3">
@@ -52,7 +52,7 @@ export default function BookmarksPage() {
           <Button variant="ghost" size="sm" onClick={() => navigate('/dashboard')}>← Dashboard</Button>
         </div>
 
-        <div className="px-8 py-6 max-w-3xl mx-auto">
+        <div className="px-6 sm:px-8 py-6 max-w-6xl mx-auto w-full">
           {ids.length === 0 ? (
             <div className="card p-16 text-center">
               <p className="text-4xl mb-4">🔖</p>

@@ -8,6 +8,7 @@ interface AuthStore {
   token: string | null;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
+  loginWithGoogle: (idToken: string) => Promise<void>;
   register: (email: string, fullName: string, password: string) => Promise<void>;
   logout: () => void;
   setUser: (user: User) => void;
@@ -24,6 +25,18 @@ export const useAuthStore = create<AuthStore>()(
         set({ isLoading: true });
         try {
           const { user, token } = await authApi.login({ email, password });
+          localStorage.setItem('fly_edu_token', token);
+          set({ user, token, isLoading: false });
+        } catch (e) {
+          set({ isLoading: false });
+          throw e;
+        }
+      },
+
+      loginWithGoogle: async (idToken: string) => {
+        set({ isLoading: true });
+        try {
+          const { user, token } = await authApi.googleLogin({ idToken });
           localStorage.setItem('fly_edu_token', token);
           set({ user, token, isLoading: false });
         } catch (e) {

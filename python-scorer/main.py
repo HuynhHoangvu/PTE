@@ -1,5 +1,9 @@
+from pathlib import Path
 from dotenv import load_dotenv
-load_dotenv()
+
+# Luôn đọc python-scorer/.env (không phụ thuộc cwd). override=True: thắng biến GEMINI_* cũ trong Windows.
+_SCORER_ROOT = Path(__file__).resolve().parent
+load_dotenv(_SCORER_ROOT / ".env", override=True)
 
 import os
 import base64
@@ -48,6 +52,7 @@ async def root():
     return {
         "status": "online",
         "service": "FlyEdu PTE AI Scorer",
+        "gemini_configured": bool(os.getenv("GEMINI_API_KEY", "").strip()),
         "phase2_available": PHASE2_AVAILABLE,
         "whisper_model": os.getenv("WHISPER_MODEL", "small")
     }
