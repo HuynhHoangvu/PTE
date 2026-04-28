@@ -2,6 +2,20 @@
 
 Tài liệu này mô tả luồng từ code hiện tại (React + Vite + Capacitor) tới bản **AAB** trên Play Console.
 
+## Tiếp tục ngay — Internal testing (thứ tự làm)
+
+1. **Backend Railway:** `FRONTEND_URL` gồm domain web Play Store / Railway (ví dụ `https://flypte.up.railway.app`) và (tuỳ chọn) `http://localhost:5173`. Code đã thêm origin WebView Capacitor (`https://localhost`, `capacitor://localhost`, …).
+2. **Frontend build cho app:** trong `frontend/`, tạo file **`.env.production`** (không commit — đã có trong `.gitignore` gốc repo):
+   - `VITE_API_BASE_URL=https://<host-backend-railway>` (HTTPS, **không** thêm `/api`).
+   - `VITE_GOOGLE_CLIENT_ID=<cùng Web Client ID với backend GOOGLE_CLIENT_ID>` nếu dùng đăng nhập Google.
+3. **Đồng bộ Android (bản gửi Play):** `npm run cap:sync:release` — script kiểm tra đã có `VITE_API_BASE_URL` (tránh lỗi API trỏ tới `/api` trong WebView).  
+   Đồng bộ nhanh không kiểm tra: `npm run cap:sync` (chỉ dùng khi bạn chắc env đã đúng).
+4. **Android Studio:** `npm run cap:open` → **Build → Generate Signed App Bundle** → tạo/chọn keystore → xuất file **`.aab`**.
+5. **[Play Console](https://play.google.com/console):** Tạo app (nếu chưa) → **Testing → Internal testing** → tạo release → tải AAB → thêm Gmail tester → gửi link cài nội bộ.
+6. **Store listing (có thể làm song song):** Chính sách quyền riêng tư (URL), **Data safety**, ảnh màn hình, icon 512×512, mô tả — xem mục 4 dưới.
+
+Sau khi internal ổn → closed/open testing → production.
+
 ## Kiến trúc nhanh
 
 - **Web UI:** `Fly_PTE/frontend` — build ra `dist/`.
@@ -120,10 +134,21 @@ Trong thư mục `Fly_PTE/frontend`:
 | `npm run dev` | Dev web, proxy `/api` |
 | `npm run build` | Chỉ build `dist/` |
 | `npm run cap:sync` | Build + `cap sync android` |
+| `npm run cap:sync:release` | Kiểm tra `.env.production` / env → build + sync (dùng trước khi ký AAB) |
 | `npm run cap:open` | Mở project trong Android Studio |
 
 ## 8. Gỡ lỗi thường gặp
 
+- **`Unable to launch Android Studio. Is it installed?`:** Capacitor không tìm thấy Studio.
+  1. Cài [Android Studio](https://developer.android.com/studio) (Windows: bật **Android SDK** trong trình cài).
+  2. **Không cần** `npm run cap:open` nếu bạn mở tay: Android Studio → **File → Open** → chọn thư mục **`Fly_PTE/frontend/android`** (đúng folder có `build.gradle`, không phải `frontend` gốc).
+  3. Nếu đã cài mà `cap open` vẫn lỗi: đặt biến môi trường trỏ tới file **`studio64.exe`**, ví dụ PowerShell (chỉnh đường dẫn nếu máy bạn khác):
+     ```powershell
+     $env:CAPACITOR_ANDROID_STUDIO_PATH = "C:\Program Files\Android\Android Studio\bin\studio64.exe"
+     npm run cap:open
+     ```
+     Hoặc bản cài theo user: `%LOCALAPPDATA%\Programs\Android Studio\bin\studio64.exe`.
+  4. Có thể thêm `CAPACITOR_ANDROID_STUDIO_PATH` vào **Biến môi trường người dùng** (Windows) để khỏi set mỗi lần.
 - **401 / CORS trên app:** kiểm tra `VITE_API_BASE_URL`, backend chạy HTTPS, `FRONTEND_URL` có domain web; Capacitor origins đã có trong backend.
 - **Trắng màn hình sau cài:** kiểm tra `vite` `base: './'` và chạy lại `npm run build` + `cap sync`.
 - **Mic không hoạt động:** đã thêm `RECORD_AUDIO`; trên thiết bị cấp quyền khi hệ thống hỏi.

@@ -23,6 +23,8 @@ stitch-skills-main
 .env
 .env.local
 .env.*.local
+# Android / Play release build (API URL + client id — do not commit)
+frontend/.env.production
 
 # Logs
 *.log
