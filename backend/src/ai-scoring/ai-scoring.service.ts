@@ -567,7 +567,7 @@ Return ONLY JSON: {"content": n, "grammar": n, "vocabulary": n, "spelling": n, "
 
     const result = await Promise.race([model.generateContent(prompt), timeoutPromise]);
     const text = result.response.text();
-    const json = JSON.parse(text.replace(/```json\n?|```/g, '').trim());
+    const json = this.parseGeminiJson(text);
     const scoreBreakdown: Record<string, number> = {};
     for (const k of breakdownKeys) { if (json[k] !== undefined) scoreBreakdown[k] = json[k]; }
 
@@ -576,5 +576,33 @@ Return ONLY JSON: {"content": n, "grammar": n, "vocabulary": n, "spelling": n, "
       scoreBreakdown,
       feedback: json.feedback || '',
     };
+  }
+
+  private parseGeminiJson(rawText: string): any {
+    const cleaned = (rawText || '').replace(/```json\n?|```/g, '').trim();
+    if (!cleaned) {
+      throw new Error('Gemini returned empty response');
+    }
+
+    try {
+      return JSON.parse(cleaned);
+    } catch {
+      // Gemini đôi lúc trả thêm text trước/sau JSON, cố trích object JSON đầu tiên.
+      const start = cleaned.indexOf('{');
+      const end = cleaned.lastIndexOf('}');
+      if (start >= 0 && end > start) {
+        const jsonSlice = cleaned.slice(start, end + 1);
+        try {
+          return JSON.parse(jsonSlice);
+        } catch {
+          // fall through
+        }
+      }
+
+      this.logger.error(
+        `Gemini returned non-JSON payload (first 500 chars): ${cleaned.slice(0, 500)}`,
+      );
+      throw new Error('Gemini returned malformed JSON');
+    }
   }
 }
