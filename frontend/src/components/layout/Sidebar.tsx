@@ -14,6 +14,7 @@ import { clsx } from "clsx";
 function LogoImg() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [ready, setReady] = React.useState(false);
+  const [scale, setScale] = React.useState(1.2);
 
   useEffect(() => {
     const img = new Image();
@@ -39,12 +40,47 @@ function LogoImg() {
   }, []);
 
   return (
-    <canvas
-      ref={canvasRef}
-      className="h-12 w-auto object-contain"
-      style={{ opacity: ready ? 1 : 0, transition: "opacity 0.2s",
-        filter: "drop-shadow(0 2px 10px rgba(228,168,8,0.45))" }}
-    />
+    <div className="flex flex-col items-center gap-2">
+      <canvas
+        ref={canvasRef}
+        className="h-16 w-auto object-contain origin-center"
+        style={{
+          opacity: ready ? 1 : 0,
+          transform: `scale(${scale})`,
+          transition: "opacity 0.2s, transform 0.2s",
+          filter: "drop-shadow(0 2px 10px rgba(228,168,8,0.45))",
+        }}
+      />
+      <div className="flex items-center gap-1.5">
+        <button
+          type="button"
+          onClick={() => setScale((s) => Math.max(0.8, Number((s - 0.1).toFixed(2))))}
+          className="px-2 py-0.5 rounded-md text-[11px] font-bold"
+          style={{ background: "rgba(253,213,47,0.14)", color: "rgba(253,213,47,0.9)" }}
+          title="Thu nhỏ logo"
+        >
+          -
+        </button>
+        <button
+          type="button"
+          onClick={() => setScale(1.2)}
+          className="px-2 py-0.5 rounded-md text-[10px] font-bold"
+          style={{ background: "rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.75)" }}
+          title="Đặt lại kích thước logo"
+        >
+          100%
+        </button>
+        <button
+          type="button"
+          onClick={() => setScale((s) => Math.min(2, Number((s + 0.1).toFixed(2))))}
+          className="px-2 py-0.5 rounded-md text-[11px] font-bold"
+          style={{ background: "rgba(253,213,47,0.14)", color: "rgba(253,213,47,0.9)" }}
+          title="Phóng to logo"
+        >
+          +
+        </button>
+      </div>
+    </div>
   );
 }
 

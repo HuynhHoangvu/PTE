@@ -5,10 +5,12 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
+    "build:release": "node scripts/ensure-android-api-env.mjs && npm run build",
     "preview": "vite preview",
     "cap:sync": "npm run build && npx cap sync android",
     "cap:sync:release": "node scripts/ensure-android-api-env.mjs && npm run build && npx cap sync android",
-    "cap:open": "npx cap open android"
+    "cap:open": "npx cap open android",
+    "android:aab:release": "npm run cap:sync:release && cd android && gradlew bundleRelease -x test -x lint"
   },
   "dependencies": {
     "@capacitor/android": "^6.2.1",

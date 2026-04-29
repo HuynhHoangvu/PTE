@@ -8,10 +8,24 @@ export class StorageService {
   private readonly isProduction = process.env.NODE_ENV === 'production';
 
   async saveAudio(attemptId: string, buffer: Buffer): Promise<string> {
-    if (this.isProduction) {
+    if (this.isProduction && this.hasGcsConfig()) {
       return this.uploadToGCS(`audio/${attemptId}.webm`, buffer);
     }
+    if (this.isProduction && !this.hasGcsConfig()) {
+      this.logger.warn(
+        'Missing GCS config (GCS_BUCKET_NAME / GCS_PROJECT_ID / GCS_CLIENT_EMAIL / GCS_PRIVATE_KEY), falling back to local storage.',
+      );
+    }
     return this.saveLocal(`audio/${attemptId}.webm`, buffer);
+  }
+
+  private hasGcsConfig(): boolean {
+    return Boolean(
+      process.env.GCS_BUCKET_NAME &&
+      process.env.GCS_PROJECT_ID &&
+      process.env.GCS_CLIENT_EMAIL &&
+      process.env.GCS_PRIVATE_KEY,
+    );
   }
 
   private async uploadToGCS(filename: string, buffer: Buffer): Promise<string> {
@@ -27,7 +41,7 @@ export class StorageService {
       },
     });
 
-    const bucket = process.env.GCS_BUCKET_NAME!;
+    const bucket = process.env.GCS_BUCKET_NAME as string;
     const file = storage.bucket(bucket).file(filename);
     await file.save(buffer, { contentType: 'audio/webm', resumable: false });
 
