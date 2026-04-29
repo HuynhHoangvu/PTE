@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 
@@ -10,6 +10,8 @@ import { StorageService } from '../common/storage/storage.service';
 
 @Injectable()
 export class AttemptsService {
+  private readonly logger = new Logger(AttemptsService.name);
+
   constructor(
     @InjectRepository(Attempt) private attemptRepo: Repository<Attempt>,
     @InjectRepository(Question) private questionRepo: Repository<Question>,
@@ -47,9 +49,14 @@ export class AttemptsService {
     }
 
     // Score asynchronously
-    this.scoreAttemptAsync(attempt, question, params.audioBuffer).catch((err) =>
-      this.attemptRepo.update(attempt.id, { status: AttemptStatus.ERROR }),
-    );
+    this.scoreAttemptAsync(attempt, question, params.audioBuffer).catch(async (err) => {
+      const msg = err instanceof Error ? err.message : String(err);
+      this.logger.error(`submitSpeaking async scoring failed for attempt=${attempt.id}: ${msg}`);
+      await this.attemptRepo.update(attempt.id, {
+        status: AttemptStatus.ERROR,
+        feedback: `Scoring failed: ${msg}`,
+      });
+    });
 
     return { id: attempt.id, status: attempt.status, message: 'Scoring in progress...' };
   }
@@ -114,9 +121,14 @@ export class AttemptsService {
     }
 
     // AI types: score asynchronously
-    this.scoreAttemptAsync(attempt, question).catch(() =>
-      this.attemptRepo.update(attempt.id, { status: AttemptStatus.ERROR }),
-    );
+    this.scoreAttemptAsync(attempt, question).catch(async (err) => {
+      const msg = err instanceof Error ? err.message : String(err);
+      this.logger.error(`submitText async scoring failed for attempt=${attempt.id}: ${msg}`);
+      await this.attemptRepo.update(attempt.id, {
+        status: AttemptStatus.ERROR,
+        feedback: `Scoring failed: ${msg}`,
+      });
+    });
     return { id: attempt.id, status: attempt.status, message: 'Scoring in progress...' };
   }
 
@@ -142,7 +154,13 @@ export class AttemptsService {
       // Update user stats
       await this.updateUserStats(attempt.userId);
     } catch (err) {
-      await this.attemptRepo.update(attempt.id, { status: AttemptStatus.ERROR });
+      const msg = err instanceof Error ? err.message : String(err);
+      this.logger.error(`scoreAttemptAsync failed for attempt=${attempt.id}: ${msg}`);
+      await this.attemptRepo.update(attempt.id, {
+        status: AttemptStatus.ERROR,
+        feedback: `Scoring failed: ${msg}`,
+      });
+      throw err;
     }
   }
 
