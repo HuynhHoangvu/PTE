@@ -164,6 +164,44 @@ export class AttemptsService {
     const attempt = await this.attemptRepo.findOne({
       where: { id },
       relations: ['question'],
+      select: {
+        id: true,
+        userId: true,
+        questionId: true,
+        audioUrl: true,
+        textAnswer: true,
+        selectedAnswers: true,
+        totalScore: true,
+        scoreBreakdown: true,
+        feedback: true,
+        transcription: true,
+        status: true,
+        duration: true,
+        createdAt: true,
+        question: {
+          id: true,
+          code: true,
+          title: true,
+          content: true,
+          type: true,
+          skill: true,
+          level: true,
+          tips: true,
+          audioUrl: true,
+          imageUrl: true,
+          options: true,
+          correctAnswer: true,
+          suggestedAnswer: true,
+          prepTime: true,
+          responseTime: true,
+          minWords: true,
+          maxWords: true,
+          isTrending: true,
+          isRepeated: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      },
     });
     if (!attempt) throw new NotFoundException('Attempt not found');
     return attempt;
@@ -172,13 +210,38 @@ export class AttemptsService {
   async getAttemptsByQuestion(questionId: string, userId: string) {
     return this.attemptRepo.find({
       where: { questionId, userId },
+      select: {
+        id: true,
+        userId: true,
+        questionId: true,
+        audioUrl: true,
+        textAnswer: true,
+        selectedAnswers: true,
+        totalScore: true,
+        scoreBreakdown: true,
+        feedback: true,
+        transcription: true,
+        status: true,
+        duration: true,
+        createdAt: true,
+      },
       order: { createdAt: 'DESC' },
       take: 10,
     });
   }
 
   async pollScore(id: string) {
-    const attempt = await this.attemptRepo.findOne({ where: { id } });
+    const attempt = await this.attemptRepo.findOne({
+      where: { id },
+      select: {
+        id: true,
+        status: true,
+        totalScore: true,
+        scoreBreakdown: true,
+        feedback: true,
+        transcription: true,
+      },
+    });
     if (!attempt) throw new NotFoundException();
     return {
       id: attempt.id,
