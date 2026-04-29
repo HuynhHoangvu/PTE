@@ -230,8 +230,15 @@ export class AiScoringService {
   private async scoreReadAloud(question: Question, transcription: string) {
     const prompt = `You are a PTE Academic examiner scoring a Read Aloud response.
 
-Original text: "${question.content}"
-Student transcription: "${transcription}"
+Original text:
+<original_text>
+${question.content}
+</original_text>
+
+Student transcription:
+<student_text>
+${transcription}
+</student_text>
 
 Score on these criteria (each out of 90):
 1. Content (0-90): How many words from original are present in correct order
@@ -255,8 +262,15 @@ totalScore = average of the three scores rounded to nearest integer.`;
       '';
     const prompt = `You are a PTE Academic examiner scoring a Repeat Sentence response.
 
-Original sentence: "${ref}"
-Student said: "${transcription}"
+Original sentence:
+<original_text>
+${ref}
+</original_text>
+
+Student said:
+<student_text>
+${transcription}
+</student_text>
 
 Score:
 1. Content (0-90): Accuracy of words repeated
@@ -280,8 +294,15 @@ Return ONLY valid JSON: {"content": number, "pronunciation": number, "fluency": 
 
     const prompt = `You are a PTE Academic examiner scoring a "${taskName}" response.
 
-Question context: "${question.title || question.content || 'Audio-based question'}"
-Student response: "${transcription}"
+Question context:
+<original_text>
+${question.title || question.content || 'Audio-based question'}
+</original_text>
+
+Student response:
+<student_text>
+${transcription}
+</student_text>
 
 Score:
 1. Content (0-90): Relevance and completeness
@@ -313,8 +334,15 @@ totalScore = average of all four.`;
     const wordCount = (textAnswer || '').split(/\s+/).filter(Boolean).length;
     const prompt = `You are a PTE Academic examiner scoring a Summarize Written Text response.
 
-Original passage: "${question.content?.substring(0, 500)}..."
-Student's one-sentence summary: "${textAnswer}"
+Original passage:
+<original_text>
+${question.content?.substring(0, 500)}...
+</original_text>
+
+Student's one-sentence summary:
+<student_text>
+${textAnswer}
+</student_text>
 Word count: ${wordCount} (should be 5-75 words)
 
 Score:
@@ -333,8 +361,15 @@ Return ONLY valid JSON: {"content": number, "form": number, "grammar": number, "
     const wordCount = (textAnswer || '').split(/\s+/).filter(Boolean).length;
     const prompt = `You are a PTE Academic examiner scoring a Write Essay response.
 
-Topic: "${question.content}"
-Student's essay: "${textAnswer}"
+Topic:
+<original_text>
+${question.content}
+</original_text>
+
+Student's essay:
+<student_text>
+${textAnswer}
+</student_text>
 Word count: ${wordCount} (target: 200-300 words)
 
 Score:
@@ -545,7 +580,10 @@ Return ONLY valid JSON: {"content": number, "development": number, "grammar": nu
     const wordCount = (textAnswer || '').split(/\s+/).filter(Boolean).length;
     const prompt = `PTE Academic examiner scoring Summarize Spoken Text.
 
-Student's written summary: "${textAnswer}"
+Student's written summary:
+<student_text>
+${textAnswer}
+</student_text>
 Word count: ${wordCount} (target 50-70 words)
 
 Score: content(0-90), grammar(0-90), vocabulary(0-90), spelling(0-90), form(0-90 based on word count)
@@ -560,7 +598,7 @@ Return ONLY JSON: {"content": n, "grammar": n, "vocabulary": n, "spelling": n, "
       model: 'gemini-2.5-flash',
       generationConfig: {
         temperature: 0.2,
-        maxOutputTokens: 400,
+        maxOutputTokens: 2048,
         responseMimeType: 'application/json',
       },
     });
@@ -570,9 +608,11 @@ Return ONLY JSON: {"content": n, "grammar": n, "vocabulary": n, "spelling": n, "
     );
 
     let json: any;
+    let lastRawText = '';
     try {
       const result = await Promise.race([model.generateContent(prompt), timeoutPromise]);
       const text = result.response.text();
+      lastRawText = text || '';
       json = this.parseGeminiJson(text);
     } catch (firstErr) {
       // Retry once with ultra-strict prompt to reduce malformed payload chance.
@@ -582,11 +622,13 @@ Return ONLY JSON: {"content": n, "grammar": n, "vocabulary": n, "spelling": n, "
           model.generateContent(retryPrompt),
           timeoutPromise,
         ]);
-        json = this.parseGeminiJson(retryResult.response.text());
+        const retryText = retryResult.response.text();
+        lastRawText = retryText || lastRawText;
+        json = this.parseGeminiJson(retryText);
       } catch (retryErr) {
         const msg = retryErr instanceof Error ? retryErr.message : String(retryErr);
         this.logger.error(`Gemini JSON parse failed after retry: ${msg}`);
-        throw retryErr;
+        return this.buildFallbackGeminiScore(breakdownKeys, lastRawText);
       }
     }
     const scoreBreakdown: Record<string, number> = {};
@@ -596,6 +638,34 @@ Return ONLY JSON: {"content": n, "grammar": n, "vocabulary": n, "spelling": n, "
       totalScore: Math.min(90, Math.max(0, Math.round(json.totalScore || 0))),
       scoreBreakdown,
       feedback: json.feedback || '',
+    };
+  }
+
+  private buildFallbackGeminiScore(breakdownKeys: string[], rawText: string) {
+    const extracted: Record<string, number> = {};
+    for (const key of breakdownKeys) {
+      const m = rawText.match(new RegExp(`"${key}"\\s*:\\s*(\\d{1,3})`, 'i'));
+      if (m) extracted[key] = Math.max(0, Math.min(90, Number(m[1])));
+    }
+
+    const scoreBreakdown: Record<string, number> = {};
+    for (const key of breakdownKeys) {
+      scoreBreakdown[key] = extracted[key] ?? 55;
+    }
+
+    const totalFromPayload = rawText.match(/"totalScore"\s*:\s*(\d{1,3})/i);
+    const totalScore = totalFromPayload
+      ? Math.max(0, Math.min(90, Number(totalFromPayload[1])))
+      : Math.round(
+          Object.values(scoreBreakdown).reduce((sum, v) => sum + v, 0) /
+            Math.max(1, Object.values(scoreBreakdown).length),
+        );
+
+    return {
+      totalScore,
+      scoreBreakdown,
+      feedback:
+        'AI trả dữ liệu không hoàn chỉnh, hệ thống dùng điểm tạm thời. Hãy thử chấm lại để có kết quả chính xác hơn.',
     };
   }
 
