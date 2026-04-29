@@ -558,16 +558,37 @@ Return ONLY JSON: {"content": n, "grammar": n, "vocabulary": n, "spelling": n, "
   private async callGemini(prompt: string, breakdownKeys: string[]) {
     const model = this.genAI.getGenerativeModel({
       model: 'gemini-2.5-flash',
-      generationConfig: { temperature: 0.3, maxOutputTokens: 400 },
+      generationConfig: {
+        temperature: 0.2,
+        maxOutputTokens: 400,
+        responseMimeType: 'application/json',
+      },
     });
 
     const timeoutPromise = new Promise<never>((_, reject) =>
       setTimeout(() => reject(new Error('Gemini API timeout after 60s')), 60000),
     );
 
-    const result = await Promise.race([model.generateContent(prompt), timeoutPromise]);
-    const text = result.response.text();
-    const json = this.parseGeminiJson(text);
+    let json: any;
+    try {
+      const result = await Promise.race([model.generateContent(prompt), timeoutPromise]);
+      const text = result.response.text();
+      json = this.parseGeminiJson(text);
+    } catch (firstErr) {
+      // Retry once with ultra-strict prompt to reduce malformed payload chance.
+      const retryPrompt = `${prompt}\n\nIMPORTANT: Return only a valid minified JSON object. No markdown, no explanations, no code fences.`;
+      try {
+        const retryResult = await Promise.race([
+          model.generateContent(retryPrompt),
+          timeoutPromise,
+        ]);
+        json = this.parseGeminiJson(retryResult.response.text());
+      } catch (retryErr) {
+        const msg = retryErr instanceof Error ? retryErr.message : String(retryErr);
+        this.logger.error(`Gemini JSON parse failed after retry: ${msg}`);
+        throw retryErr;
+      }
+    }
     const scoreBreakdown: Record<string, number> = {};
     for (const k of breakdownKeys) { if (json[k] !== undefined) scoreBreakdown[k] = json[k]; }
 
