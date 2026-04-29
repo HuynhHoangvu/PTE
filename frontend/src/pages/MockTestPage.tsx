@@ -106,7 +106,11 @@ export function MockTestPage() {
                   <span className={clsx('text-[10px] font-bold px-2 py-1 rounded',
                     h.status === 'COMPLETED' ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'
                   )}>{h.status}</span>
-                  {h.totalScore && <span className="font-display font-black text-brand-orange">{h.totalScore}/90</span>}
+                  {h.totalScore != null && (
+                    <span className="font-display font-black text-brand-orange">
+                      AI: {Math.round(h.totalScore)}
+                    </span>
+                  )}
                 </div>
               ))}
               {(!history || history.length === 0) && (

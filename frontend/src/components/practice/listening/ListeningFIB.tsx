@@ -12,6 +12,9 @@ export function ListeningFIB({ question }: { question: Question }) {
   const [submitted, setSubmitted] = React.useState(false);
   const [result, setResult] = React.useState<any>(null);
   const qc = useQueryClient();
+  const fibDetails = (result?.scoreBreakdown?.details || {}) as Record<string, boolean>;
+  const fibTotal = Object.keys(fibDetails).length;
+  const fibCorrect = Object.values(fibDetails).filter(Boolean).length;
 
   const submitMutation = useMutation({
     mutationFn: () =>
@@ -83,6 +86,11 @@ export function ListeningFIB({ question }: { question: Question }) {
 
       {result?.status === "SCORED" && (
         <div className="bg-gray-50 rounded-xl p-3">
+          {fibTotal > 0 && (
+            <p className="text-sm font-black text-brand-orange mb-1">
+              Điểm: {fibCorrect}/{fibTotal} blanks
+            </p>
+          )}
           <p className="text-sm font-bold text-brand-orange">{result.feedback}</p>
         </div>
       )}

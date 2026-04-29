@@ -590,7 +590,7 @@ function UsersTab() {
                     </span>
                   </div>
                   {a.totalScore != null && (
-                    <p className="text-[11px] text-brand-gold font-black">{Math.round(a.totalScore)}/90</p>
+                    <p className="text-[11px] text-brand-gold font-black">AI: {Math.round(a.totalScore)}</p>
                   )}
                   <p className="text-[10px] text-gray-400 mt-0.5">{new Date(a.createdAt).toLocaleDateString("vi-VN")}</p>
                 </div>
@@ -698,7 +698,7 @@ function MockResultsTab() {
                         </span>
                         {a.totalScore != null && (
                           <div className="text-right">
-                            <p className="font-black text-sm" style={{ color: GOLD }}>{Math.round(a.totalScore)}/90</p>
+                            <p className="font-black text-sm" style={{ color: GOLD }}>AI: {Math.round(a.totalScore)}</p>
                             {a.sectionScores && (
                               <p className="text-[10px] text-gray-400">
                                 S:{Math.round(a.sectionScores.speaking||0)} W:{Math.round(a.sectionScores.writing||0)} R:{Math.round(a.sectionScores.reading||0)} L:{Math.round(a.sectionScores.listening||0)}

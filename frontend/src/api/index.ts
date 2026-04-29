@@ -23,6 +23,12 @@ api.interceptors.response.use(
   (res) => res,
   (err) => {
     if (err.response?.status === 401) {
+      const url = String(err.config?.url || '');
+      // Do not force-redirect on auth endpoints, otherwise login/google-login
+      // failures look like an infinite reload loop on /login.
+      if (url.includes('/auth/login') || url.includes('/auth/register') || url.includes('/auth/google')) {
+        return Promise.reject(err);
+      }
       // Clear both the raw token AND the Zustand persist store.
       // Without clearing 'fly-edu-auth', Zustand rehydrates the old token on
       // the next page load → ProtectedRoute lets the user in → 401 again → infinite loop.

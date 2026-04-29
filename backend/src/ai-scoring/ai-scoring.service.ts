@@ -11,7 +11,23 @@ export class AiScoringService {
 
   constructor() {
     this.genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
-    this.pythonScorerUrl = process.env.PYTHON_SCORER_URL || null;
+    this.pythonScorerUrl = this.normalizePythonScorerUrl(process.env.PYTHON_SCORER_URL);
+    if (process.env.PYTHON_SCORER_URL && !this.pythonScorerUrl) {
+      this.logger.warn('Invalid PYTHON_SCORER_URL, python scorer disabled');
+    }
+  }
+
+  private normalizePythonScorerUrl(url?: string): string | null {
+    if (!url) return null;
+    const trimmed = url.trim().replace(/\/+$/, '');
+    if (!trimmed) return null;
+    const withScheme = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+    try {
+      const parsed = new URL(withScheme);
+      return parsed.origin + parsed.pathname.replace(/\/+$/, '');
+    } catch {
+      return null;
+    }
   }
 
   // ── Delegate to Python scorer if available ────────────────────────────────
@@ -59,7 +75,9 @@ export class AiScoringService {
         transcription: data.transcription,
       };
     } catch (err) {
-      this.logger.warn('Python scorer unavailable, falling back to built-in', err?.message);
+      this.logger.warn(
+        `Python scorer unavailable, falling back to built-in: ${err instanceof Error ? err.message : String(err)}`,
+      );
       return null;
     }
   }
@@ -87,7 +105,9 @@ export class AiScoringService {
           }
         }
       } catch (err) {
-        this.logger.warn('Python scorer transcription failed, trying Gemini', err?.message);
+        this.logger.warn(
+          `Python scorer transcription failed, trying Gemini: ${err instanceof Error ? err.message : String(err)}`,
+        );
       }
     }
 

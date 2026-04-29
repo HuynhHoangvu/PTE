@@ -35,6 +35,10 @@ export class Attempt {
   @Column({ nullable: true })
   audioUrl: string;
 
+  // For speaking: audio file binary data (stored in DB)
+  @Column({ type: 'bytea', nullable: true })
+  audioData: Buffer;
+
   // For writing: text answer
   @Column({ type: 'text', nullable: true })
   textAnswer: string;

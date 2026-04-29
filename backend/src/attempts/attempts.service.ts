@@ -189,4 +189,10 @@ export class AttemptsService {
       transcription: attempt.transcription,
     };
   }
+
+  async getAttemptAudio(id: string): Promise<Buffer | null> {
+    const attempt = await this.attemptRepo.findOne({ where: { id } });
+    if (!attempt) throw new NotFoundException();
+    return this.storageService.getAudioData(id);
+  }
 }

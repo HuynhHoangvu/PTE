@@ -1,4 +1,5 @@
 const { Client } = require('pg');
+const bcrypt = require('bcryptjs');
 
 async function main() {
   const databaseUrl = process.env.DATABASE_URL;
@@ -9,8 +10,9 @@ async function main() {
   const client = new Client({ connectionString: databaseUrl });
   await client.connect();
 
-  const email = 'admin@flyedu.com';
-  const hash = '$2a$10$CTgV0A8J2m8YyWcVtP1FgOzc4inVLLSMp9zVMtt/lxeRmUiLk5xTO';
+  const email = process.env.RESET_EMAIL || 'admin@flyedu.com';
+  const plainPassword = process.env.RESET_PASSWORD || 'Fly2026$$';
+  const hash = await bcrypt.hash(plainPassword, 10);
 
   const before = await client.query(
     'SELECT id, email, role FROM users WHERE email = $1',

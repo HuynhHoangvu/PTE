@@ -1,6 +1,7 @@
 import {
   Controller, Post, Get, Param, Body, Query,
   UseGuards, Request, UploadedFile, UseInterceptors,
+  StreamableFile, Response, NotFoundException,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiTags, ApiBearerAuth, ApiConsumes } from '@nestjs/swagger';
@@ -63,5 +64,16 @@ export class AttemptsController {
   @Get(':id')
   getAttempt(@Param('id') id: string) {
     return this.attemptsService.getAttempt(id);
+  }
+
+  // Get audio data from database
+  @Get(':id/audio')
+  async getAudio(@Param('id') id: string, @Response() res) {
+    const audioData = await this.attemptsService.getAttemptAudio(id);
+    if (!audioData) {
+      throw new NotFoundException('Audio not found');
+    }
+    res.type('audio/webm');
+    res.send(audioData);
   }
 }

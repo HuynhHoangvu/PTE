@@ -55,6 +55,13 @@ export function FillInBlanksRW({ question }: { question: Question }) {
   const [submitted, setSubmitted] = React.useState(false);
   const [result, setResult] = React.useState<any>(null);
   const qc = useQueryClient();
+  const fibDetails = (result?.scoreBreakdown?.details || {}) as Record<string, boolean>;
+  const fibTotal = Object.keys(fibDetails).length || blankCount;
+  const fibCorrect = Object.values(fibDetails).filter(Boolean).length;
+  const normalizedBreakdown =
+    result?.status === "SCORED"
+      ? { content: fibCorrect, content_max: fibTotal }
+      : undefined;
 
   const submitMutation = useMutation({
     mutationFn: () => {
@@ -145,9 +152,10 @@ export function FillInBlanksRW({ question }: { question: Question }) {
 
       {result?.status === "SCORED" && (
         <ScorePanel
-          totalScore={result.totalScore}
-          breakdown={result.scoreBreakdown}
+          totalScore={fibCorrect}
+          breakdown={normalizedBreakdown}
           feedback={result.feedback}
+          maxScore={fibTotal}
         />
       )}
     </div>

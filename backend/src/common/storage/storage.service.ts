@@ -1,57 +1,61 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { Attempt } from '../../attempts/attempt.entity';
 import * as fs from 'fs';
 import * as path from 'path';
 
 @Injectable()
 export class StorageService {
   private readonly logger = new Logger(StorageService.name);
-  private readonly isProduction = process.env.NODE_ENV === 'production';
+  private readonly databaseUrl = process.env.DATABASE_URL?.trim() || '';
+
+  constructor(
+    @InjectRepository(Attempt) private attemptRepo: Repository<Attempt>,
+  ) {}
 
   async saveAudio(attemptId: string, buffer: Buffer): Promise<string> {
-    if (this.isProduction && this.hasGcsConfig()) {
-      return this.uploadToGCS(`audio/${attemptId}.webm`, buffer);
+    if (this.shouldStoreAudioInDatabase()) {
+      await this.attemptRepo.update(attemptId, { audioData: buffer });
+      return `/api/attempts/${attemptId}/audio`;
     }
-    if (this.isProduction && !this.hasGcsConfig()) {
-      this.logger.warn(
-        'Missing GCS config (GCS_BUCKET_NAME / GCS_PROJECT_ID / GCS_CLIENT_EMAIL / GCS_PRIVATE_KEY), falling back to local storage.',
-      );
-    }
+
     return this.saveLocal(`audio/${attemptId}.webm`, buffer);
   }
 
-  private hasGcsConfig(): boolean {
-    return Boolean(
-      process.env.GCS_BUCKET_NAME &&
-      process.env.GCS_PROJECT_ID &&
-      process.env.GCS_CLIENT_EMAIL &&
-      process.env.GCS_PRIVATE_KEY,
-    );
-  }
+  async getAudioData(attemptId: string): Promise<Buffer | null> {
+    const attempt = await this.attemptRepo.findOne({ where: { id: attemptId } });
+    if (!attempt) return null;
 
-  private async uploadToGCS(filename: string, buffer: Buffer): Promise<string> {
-    // Lazy-load to avoid requiring GCS SDK in local dev
-    const { Storage } = await import('@google-cloud/storage');
+    if (attempt.audioData?.length) return attempt.audioData;
 
-    const privateKey = (process.env.GCS_PRIVATE_KEY || '').replace(/\\n/g, '\n');
-    const storage = new Storage({
-      projectId: process.env.GCS_PROJECT_ID,
-      credentials: {
-        client_email: process.env.GCS_CLIENT_EMAIL,
-        private_key: privateKey,
-      },
-    });
+    if (attempt.audioUrl?.startsWith('/uploads/')) {
+      const localPath = path.join(process.cwd(), attempt.audioUrl.replace(/^\//, ''));
+      if (fs.existsSync(localPath)) {
+        return fs.readFileSync(localPath);
+      }
+    }
 
-    const bucket = process.env.GCS_BUCKET_NAME as string;
-    const file = storage.bucket(bucket).file(filename);
-    await file.save(buffer, { contentType: 'audio/webm', resumable: false });
-
-    return `https://storage.googleapis.com/${bucket}/${filename}`;
+    return null;
   }
 
   private saveLocal(filename: string, buffer: Buffer): string {
     const uploadDir = path.join(process.cwd(), 'uploads', path.dirname(filename));
     if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
-    fs.writeFileSync(path.join(process.cwd(), 'uploads', filename), buffer);
+    const outputPath = path.join(process.cwd(), 'uploads', filename);
+    fs.writeFileSync(outputPath, buffer);
     return `/uploads/${filename}`;
+  }
+
+  private shouldStoreAudioInDatabase(): boolean {
+    if (process.env.NODE_ENV === 'production') return true;
+    if (!this.databaseUrl) return false;
+
+    try {
+      const host = new URL(this.databaseUrl).hostname;
+      return host !== 'localhost' && host !== '127.0.0.1';
+    } catch {
+      return false;
+    }
   }
 }

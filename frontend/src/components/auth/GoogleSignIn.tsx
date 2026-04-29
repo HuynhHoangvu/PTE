@@ -28,10 +28,12 @@ export function GoogleSignIn({
   const navigate = useNavigate();
   const loginWithGoogle = useAuthStore((s) => s.loginWithGoogle);
   const divRef = useRef<HTMLDivElement>(null);
+  const [initError, setInitError] = React.useState<string | null>(null);
   const clientId = (import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined)?.trim();
 
   useEffect(() => {
     if (!clientId || !divRef.current) return;
+    setInitError(null);
 
     const callback = async (response: { credential: string }) => {
       try {
@@ -45,16 +47,23 @@ export function GoogleSignIn({
     const render = () => {
       const el = divRef.current;
       if (!el || !window.google?.accounts?.id) return;
-      el.innerHTML = '';
-      window.google.accounts.id.initialize({ client_id: clientId, callback });
-      window.google.accounts.id.renderButton(el, {
-        type: 'standard',
-        theme: 'outline',
-        size: 'large',
-        width: Math.min(340, typeof window !== 'undefined' ? window.innerWidth - 48 : 320),
-        text: 'signin_with',
-        locale: 'vi',
-      });
+      try {
+        el.innerHTML = '';
+        window.google.accounts.id.initialize({ client_id: clientId, callback });
+        window.google.accounts.id.renderButton(el, {
+          type: 'standard',
+          theme: 'outline',
+          size: 'large',
+          width: Math.min(340, typeof window !== 'undefined' ? window.innerWidth - 48 : 320),
+          text: 'signin_with',
+          locale: 'vi',
+        });
+      } catch {
+        const msg =
+          'Google Sign-In chưa sẵn sàng. Kiểm tra Authorized JavaScript origins (localhost:5173 / domain production) trong Google Cloud Console.';
+        setInitError(msg);
+        onError(msg);
+      }
     };
 
     const existing = document.querySelector('script[src="https://accounts.google.com/gsi/client"]');
@@ -68,9 +77,15 @@ export function GoogleSignIn({
     script.src = 'https://accounts.google.com/gsi/client';
     script.async = true;
     script.onload = render;
+    script.onerror = () => {
+      const msg = 'Không tải được Google Sign-In script. Kiểm tra mạng hoặc chặn script trên trình duyệt.';
+      setInitError(msg);
+      onError(msg);
+    };
     document.body.appendChild(script);
     return () => {
       script.onload = null;
+      script.onerror = null;
     };
   }, [clientId, loginWithGoogle, navigate, onError]);
 
@@ -81,6 +96,11 @@ export function GoogleSignIn({
   return (
     <div className="mt-6 border-t border-gray-200/90 pt-6">
       <div ref={divRef} className="flex min-h-[48px] justify-center" />
+      {initError && (
+        <p className="mt-2 text-xs text-amber-700 text-center">
+          {initError}
+        </p>
+      )}
     </div>
   );
 }
