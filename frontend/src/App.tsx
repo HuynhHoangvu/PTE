@@ -18,6 +18,7 @@ import MAnalyticsPage from "./mobile/pages/MAnalyticsPage";
 import MQuestionListPage from "./mobile/pages/MQuestionListPage";
 import { MobileShell } from "./mobile/layout/MobileShell";
 import { MOnboardingGate } from "./mobile/pages/MOnboardingGate";
+import { MPrivacyPolicyPage } from "./mobile/pages/MPrivacyPolicyPage";
 
 // Keep desktop pages for admin and mock test detail/result
 import { MockTestExamPage } from "./pages/MockTestPage";
@@ -84,6 +85,7 @@ export default function App() {
           {/* ── Public ── */}
           <Route path="/login" element={<PublicRoute><MLoginPage /></PublicRoute>} />
           <Route path="/register" element={<PublicRoute><MRegisterPage /></PublicRoute>} />
+          <Route path="/privacy" element={<MPrivacyPolicyPage />} />
 
           {/* ── Tabbed (bottom nav shell) ── */}
           <Route element={<TabbedLayout />}>
