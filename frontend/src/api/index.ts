@@ -133,6 +133,14 @@ export const adminApi = {
     api.patch(`/admin/users/${id}`, data).then((r) => r.data),
   getUserMockTests: (id: string) =>
     api.get(`/admin/users/${id}/mock-tests`).then((r) => r.data),
+  // Analytics
+  getAnalyticsOverview: () => api.get('/admin/analytics/overview').then((r) => r.data),
+  getAnalyticsUsers: (params?: {
+    search?: string; page?: number; limit?: number;
+    sortBy?: string; sortOrder?: string;
+    skill?: string; plan?: string; activeIn?: string;
+  }) => api.get('/admin/analytics/users', { params }).then((r) => r.data),
+  getUserActivity: (id: string) => api.get(`/admin/analytics/users/${id}`).then((r) => r.data),
 };
 
 export default api;

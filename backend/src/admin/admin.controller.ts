@@ -4,9 +4,11 @@ import {
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Like } from 'typeorm';
+import { Repository, Like, DataSource } from 'typeorm';
 import { User, UserPlan, UserRole } from '../users/user.entity';
 import { MockTestAttempt, MockTestAttemptStatus } from '../mock-test/mock-test.entity';
+import { Attempt } from '../attempts/attempt.entity';
+import { Question } from '../questions/question.entity';
 
 class UpdateUserDto {
   plan?: UserPlan;
@@ -19,7 +21,10 @@ class UpdateUserDto {
 export class AdminController {
   constructor(
     @InjectRepository(User) private userRepo: Repository<User>,
-    @InjectRepository(MockTestAttempt) private attemptRepo: Repository<MockTestAttempt>,
+    @InjectRepository(MockTestAttempt) private mockAttemptRepo: Repository<MockTestAttempt>,
+    @InjectRepository(Attempt) private attemptRepo: Repository<Attempt>,
+    @InjectRepository(Question) private questionRepo: Repository<Question>,
+    private dataSource: DataSource,
   ) {}
 
   private checkAdmin(req: any) {
@@ -83,7 +88,7 @@ export class AdminController {
   @Get('users/:id/mock-tests')
   async getUserMockTests(@Request() req, @Param('id') id: string) {
     this.checkAdmin(req);
-    const attempts = await this.attemptRepo.find({
+    const attempts = await this.mockAttemptRepo.find({
       where: { userId: id },
       relations: ['mockTest'],
       order: { createdAt: 'DESC' },
@@ -97,7 +102,309 @@ export class AdminController {
     const totalUsers = await this.userRepo.count();
     const premiumUsers = await this.userRepo.count({ where: { plan: UserPlan.PREMIUM } });
     const totalAttempts = await this.attemptRepo.count();
-    const completedTests = await this.attemptRepo.count({ where: { status: MockTestAttemptStatus.COMPLETED } });
+    const completedTests = await this.mockAttemptRepo.count({ where: { status: MockTestAttemptStatus.COMPLETED } });
     return { totalUsers, premiumUsers, totalAttempts, completedTests };
+  }
+
+  // ── Analytics: Platform Overview ─────────────────────────────────────────
+  @Get('analytics/overview')
+  async getAnalyticsOverview(@Request() req) {
+    this.checkAdmin(req);
+
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const week = new Date(today); week.setDate(today.getDate() - 7);
+    const month = new Date(today); month.setDate(today.getDate() - 30);
+
+    const [totalUsers, premiumUsers, activeToday, activeThisWeek, activeThisMonth, totalAttempts, totalMockTests] =
+      await Promise.all([
+        this.userRepo.count(),
+        this.userRepo.count({ where: { plan: UserPlan.PREMIUM } }),
+        this.dataSource.query(`SELECT COUNT(DISTINCT "userId") FROM attempts WHERE "createdAt" >= $1`, [today]),
+        this.dataSource.query(`SELECT COUNT(DISTINCT "userId") FROM attempts WHERE "createdAt" >= $1`, [week]),
+        this.dataSource.query(`SELECT COUNT(DISTINCT "userId") FROM attempts WHERE "createdAt" >= $1`, [month]),
+        this.attemptRepo.count(),
+        this.mockAttemptRepo.count({ where: { status: MockTestAttemptStatus.COMPLETED } }),
+      ]);
+
+    // Attempts by skill (last 30 days)
+    const bySkill: { skill: string; cnt: string }[] = await this.dataSource.query(`
+      SELECT q.skill, COUNT(a.id)::text AS cnt
+      FROM attempts a
+      JOIN questions q ON a."questionId" = q.id
+      WHERE a."createdAt" >= $1
+      GROUP BY q.skill
+      ORDER BY cnt DESC
+    `, [month]);
+
+    // Attempts by question type (last 30 days)
+    const byType: { type: string; cnt: string }[] = await this.dataSource.query(`
+      SELECT q.type, COUNT(a.id)::text AS cnt
+      FROM attempts a
+      JOIN questions q ON a."questionId" = q.id
+      WHERE a."createdAt" >= $1
+      GROUP BY q.type
+      ORDER BY cnt DESC
+      LIMIT 10
+    `, [month]);
+
+    // Daily activity trend (last 14 days)
+    const dailyTrend: { day: string; cnt: string; users: string }[] = await this.dataSource.query(`
+      SELECT DATE("createdAt") AS day,
+             COUNT(id)::text AS cnt,
+             COUNT(DISTINCT "userId")::text AS users
+      FROM attempts
+      WHERE "createdAt" >= $1
+      GROUP BY DATE("createdAt")
+      ORDER BY day ASC
+    `, [new Date(today.getTime() - 14 * 86400000)]);
+
+    return {
+      totalUsers,
+      premiumUsers: Number(premiumUsers),
+      activeToday: Number(activeToday[0]?.count ?? 0),
+      activeThisWeek: Number(activeThisWeek[0]?.count ?? 0),
+      activeThisMonth: Number(activeThisMonth[0]?.count ?? 0),
+      totalAttempts,
+      totalMockTests,
+      bySkill: bySkill.map(r => ({ skill: r.skill, count: Number(r.cnt) })),
+      byType: byType.map(r => ({ type: r.type, count: Number(r.cnt) })),
+      dailyTrend: dailyTrend.map(r => ({ day: r.day, attempts: Number(r.cnt), users: Number(r.users) })),
+    };
+  }
+
+  // ── Analytics: Enhanced user list with activity stats ────────────────────
+  @Get('analytics/users')
+  async getAnalyticsUsers(
+    @Request() req,
+    @Query('search') search?: string,
+    @Query('page') page = '1',
+    @Query('limit') limit = '20',
+    @Query('sortBy') sortBy = 'lastActive',
+    @Query('sortOrder') sortOrder: 'asc' | 'desc' = 'desc',
+    @Query('skill') skill?: string,
+    @Query('plan') plan?: string,
+    @Query('activeIn') activeIn?: string, // 'today'|'week'|'month'|'all'
+  ) {
+    this.checkAdmin(req);
+    const take = Math.min(parseInt(limit) || 20, 100);
+    const pageNum = parseInt(page) || 1;
+    const skip = (pageNum - 1) * take;
+
+    const now = new Date();
+    const cutoffMap: Record<string, Date> = {
+      today: new Date(now.getFullYear(), now.getMonth(), now.getDate()),
+      week: new Date(now.getTime() - 7 * 86400000),
+      month: new Date(now.getTime() - 30 * 86400000),
+    };
+
+    // Build WHERE clause
+    const conditions: string[] = [];
+    const params: any[] = [];
+    let pIdx = 1;
+
+    if (search) {
+      conditions.push(`(u.email ILIKE $${pIdx} OR u."fullName" ILIKE $${pIdx})`);
+      params.push(`%${search}%`);
+      pIdx++;
+    }
+    if (plan) {
+      conditions.push(`u.plan = $${pIdx}`);
+      params.push(plan);
+      pIdx++;
+    }
+
+    const whereSql = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+
+    // Sort mapping
+    const sortMap: Record<string, string> = {
+      lastActive: 'last_active',
+      totalAttempts: 'total_attempts',
+      avgScore: 'avg_score',
+      createdAt: 'u."createdAt"',
+      email: 'u.email',
+    };
+    const sortCol = sortMap[sortBy] || 'last_active';
+    const order = sortOrder === 'asc' ? 'ASC' : 'DESC';
+
+    // Active filter subquery
+    const activeFilter = activeIn && cutoffMap[activeIn]
+      ? `AND a."createdAt" >= '${cutoffMap[activeIn].toISOString()}'`
+      : '';
+
+    // skill filter applied inside subquery so skill breakdown is always shown, but WHERE filters rows
+    const skillHaving = skill
+      ? `AND COALESCE(stats.${skill.toLowerCase()}_cnt, 0) > 0`
+      : '';
+
+    const [rows, countResult]: [any[], any[]] = await Promise.all([
+      this.dataSource.query(`
+        SELECT
+          u.id, u.email, u."fullName", u.plan, u.role,
+          u."createdAt" AS created_at,
+          stats.last_active,
+          COALESCE(stats.total_attempts, 0)::int AS total_attempts,
+          stats.avg_score,
+          COALESCE(stats.speaking_cnt, 0)::int AS speaking_cnt,
+          COALESCE(stats.writing_cnt, 0)::int AS writing_cnt,
+          COALESCE(stats.reading_cnt, 0)::int AS reading_cnt,
+          COALESCE(stats.listening_cnt, 0)::int AS listening_cnt,
+          COALESCE(mock_stats.mock_cnt, 0)::int AS mock_cnt,
+          mock_stats.mock_avg_score
+        FROM users u
+        LEFT JOIN (
+          SELECT a."userId",
+                 MAX(a."createdAt") AS last_active,
+                 COUNT(a.id) AS total_attempts,
+                 ROUND(AVG(a."totalScore")::numeric, 1) AS avg_score,
+                 COUNT(CASE WHEN q.skill = 'SPEAKING' THEN 1 END) AS speaking_cnt,
+                 COUNT(CASE WHEN q.skill = 'WRITING' THEN 1 END) AS writing_cnt,
+                 COUNT(CASE WHEN q.skill = 'READING' THEN 1 END) AS reading_cnt,
+                 COUNT(CASE WHEN q.skill = 'LISTENING' THEN 1 END) AS listening_cnt
+          FROM attempts a
+          LEFT JOIN questions q ON a."questionId" = q.id
+          WHERE 1=1 ${activeFilter}
+          GROUP BY a."userId"
+        ) stats ON u.id = stats."userId"
+        LEFT JOIN (
+          SELECT m."userId",
+                 COUNT(m.id) AS mock_cnt,
+                 ROUND(AVG(m."totalScore")::numeric, 1) AS mock_avg_score
+          FROM mock_test_attempts m
+          WHERE m.status = 'COMPLETED'
+          GROUP BY m."userId"
+        ) mock_stats ON u.id = mock_stats."userId"
+        ${whereSql} ${skillHaving}
+        ORDER BY ${sortCol} ${order} NULLS LAST
+        LIMIT ${take} OFFSET ${skip}
+      `, params),
+      this.dataSource.query(`
+        SELECT COUNT(u.id)::text AS total
+        FROM users u
+        LEFT JOIN (
+          SELECT a."userId", MAX(a."createdAt") AS last_active,
+                 COUNT(CASE WHEN q.skill = 'SPEAKING' THEN 1 END) AS speaking_cnt,
+                 COUNT(CASE WHEN q.skill = 'WRITING' THEN 1 END) AS writing_cnt,
+                 COUNT(CASE WHEN q.skill = 'READING' THEN 1 END) AS reading_cnt,
+                 COUNT(CASE WHEN q.skill = 'LISTENING' THEN 1 END) AS listening_cnt
+          FROM attempts a
+          LEFT JOIN questions q ON a."questionId" = q.id
+          WHERE 1=1 ${activeFilter}
+          GROUP BY a."userId"
+        ) stats ON u.id = stats."userId"
+        ${whereSql} ${skillHaving}
+      `, params),
+    ]);
+
+    return {
+      users: rows.map(r => ({
+        id: r.id,
+        email: r.email,
+        fullName: r.fullName || null,
+        plan: r.plan,
+        role: r.role,
+        createdAt: r.created_at,
+        lastActiveAt: r.last_active,
+        totalAttempts: r.total_attempts,
+        avgScore: r.avg_score ? Number(r.avg_score) : null,
+        mockCount: r.mock_cnt,
+        mockAvgScore: r.mock_avg_score ? Number(r.mock_avg_score) : null,
+        skillBreakdown: {
+          SPEAKING: r.speaking_cnt,
+          WRITING: r.writing_cnt,
+          READING: r.reading_cnt,
+          LISTENING: r.listening_cnt,
+        },
+      })),
+      total: Number(countResult[0]?.total ?? 0),
+      page: pageNum,
+      limit: take,
+    };
+  }
+
+  // ── Analytics: Per-user detailed activity ────────────────────────────────
+  @Get('analytics/users/:id')
+  async getUserActivity(@Request() req, @Param('id') id: string) {
+    this.checkAdmin(req);
+    const user = await this.userRepo.findOne({
+      where: { id },
+      select: ['id', 'email', 'fullName', 'plan', 'role', 'createdAt'],
+    });
+    if (!user) throw new NotFoundException('User not found');
+
+    const [byType, recentAttempts, dailyActivity, mockAttempts] = await Promise.all([
+      // Practice attempts grouped by question type
+      this.dataSource.query(`
+        SELECT q.skill, q.type,
+               COUNT(a.id)::int AS cnt,
+               ROUND(AVG(a."totalScore")::numeric, 1) AS avg_score,
+               MAX(a."totalScore")::numeric AS best_score,
+               MAX(a."createdAt") AS last_at
+        FROM attempts a
+        JOIN questions q ON a."questionId" = q.id
+        WHERE a."userId" = $1
+        GROUP BY q.skill, q.type
+        ORDER BY cnt DESC
+      `, [id]),
+      // Last 20 practice attempts with score
+      this.dataSource.query(`
+        SELECT a.id, a."totalScore", a.status, a."createdAt",
+               q.type, q.skill, q.code, q.title
+        FROM attempts a
+        JOIN questions q ON a."questionId" = q.id
+        WHERE a."userId" = $1
+        ORDER BY a."createdAt" DESC
+        LIMIT 20
+      `, [id]),
+      // Daily activity last 30 days (practice + mock combined)
+      this.dataSource.query(`
+        SELECT day, SUM(cnt)::int AS cnt FROM (
+          SELECT DATE(a."createdAt") AS day, COUNT(a.id) AS cnt
+          FROM attempts a
+          WHERE a."userId" = $1 AND a."createdAt" >= NOW() - INTERVAL '30 days'
+          GROUP BY DATE(a."createdAt")
+          UNION ALL
+          SELECT DATE(m."createdAt") AS day, COUNT(m.id) AS cnt
+          FROM mock_test_attempts m
+          WHERE m."userId" = $1 AND m."createdAt" >= NOW() - INTERVAL '30 days'
+          GROUP BY DATE(m."createdAt")
+        ) combined
+        GROUP BY day ORDER BY day ASC
+      `, [id]),
+      // All mock test attempts for this user
+      this.dataSource.query(`
+        SELECT m.id, m.status, m."totalScore", m."sectionScores",
+               m."startedAt", m."completedAt", m."createdAt",
+               t.code AS test_code, t.title AS test_title
+        FROM mock_test_attempts m
+        JOIN mock_tests t ON m."mockTestId" = t.id
+        WHERE m."userId" = $1
+        ORDER BY m."createdAt" DESC
+      `, [id]),
+    ]);
+
+    return {
+      user,
+      byType: byType.map((r: any) => ({
+        skill: r.skill, type: r.type, count: r.cnt,
+        avgScore: r.avg_score ? Number(r.avg_score) : null,
+        bestScore: r.best_score ? Number(r.best_score) : null,
+        lastAt: r.last_at,
+      })),
+      recentAttempts: recentAttempts.map((r: any) => ({
+        id: r.id, totalScore: r.totalScore != null ? Number(r.totalScore) : null,
+        status: r.status, createdAt: r.createdAt,
+        questionType: r.type, questionSkill: r.skill,
+        questionCode: r.code, questionTitle: r.title,
+      })),
+      dailyActivity: dailyActivity.map((r: any) => ({ day: r.day, count: r.cnt })),
+      mockAttempts: mockAttempts.map((r: any) => ({
+        id: r.id, status: r.status,
+        totalScore: r.totalScore != null ? Number(r.totalScore) : null,
+        sectionScores: r.sectionScores,
+        startedAt: r.startedAt, completedAt: r.completedAt, createdAt: r.createdAt,
+        testCode: r.test_code, testTitle: r.test_title,
+      })),
+    };
   }
 }

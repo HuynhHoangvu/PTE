@@ -6,6 +6,7 @@ import {
   Settings2, Users, ClipboardList, Search, Crown,
   CheckCircle2, Clock, AlertCircle, ChevronLeft, ChevronRight,
   Shield, UserCheck, CreditCard, XCircle, RefreshCw,
+  BarChart3, TrendingUp, Activity, ChevronDown, ChevronUp,
 } from "lucide-react";
 import { questionsApi, adminApi, paymentsApi } from "../api";
 import { useAuthStore } from "../stores/authStore";
@@ -42,7 +43,7 @@ const EMPTY_FORM = {
 };
 
 type FormState = typeof EMPTY_FORM;
-type Tab = "questions" | "users" | "mock-results" | "payments";
+type Tab = "questions" | "users" | "mock-results" | "payments" | "analytics";
 
 // ── JSON textarea ─────────────────────────────────────────────────────────────
 function JsonTextarea({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
@@ -830,11 +831,396 @@ function PaymentsTab() {
   );
 }
 
+// ── Analytics Tab ─────────────────────────────────────────────────────────────
+const SKILL_COLORS: Record<string, string> = {
+  SPEAKING: "#f59e0b", WRITING: "#3b82f6", READING: "#10b981", LISTENING: "#8b5cf6",
+};
+const SKILL_BG: Record<string, string> = {
+  SPEAKING: "bg-amber-100 text-amber-800", WRITING: "bg-blue-100 text-blue-800",
+  READING: "bg-green-100 text-green-800", LISTENING: "bg-purple-100 text-purple-800",
+};
+
+function SkillBar({ skill, count, max }: { skill: string; count: number; max: number }) {
+  const pct = max > 0 ? Math.round((count / max) * 100) : 0;
+  return (
+    <div className="flex items-center gap-2 text-xs">
+      <span className="w-20 text-gray-500 truncate">{skill[0] + skill.slice(1).toLowerCase()}</span>
+      <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+        <div className="h-full rounded-full" style={{ width: `${pct}%`, background: SKILL_COLORS[skill] || "#999" }} />
+      </div>
+      <span className="w-8 text-right font-bold text-gray-700">{count}</span>
+    </div>
+  );
+}
+
+function AnalyticsTab() {
+  const [search, setSearch] = React.useState("");
+  const [debouncedSearch, setDebouncedSearch] = React.useState("");
+  const [page, setPage] = React.useState(1);
+  const [sortBy, setSortBy] = React.useState("lastActive");
+  const [sortOrder, setSortOrder] = React.useState<"asc" | "desc">("desc");
+  const [skillFilter, setSkillFilter] = React.useState("");
+  const [planFilter, setPlanFilter] = React.useState("");
+  const [activeFilter, setActiveFilter] = React.useState("");
+  const [expandedId, setExpandedId] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    const t = setTimeout(() => { setDebouncedSearch(search); setPage(1); }, 400);
+    return () => clearTimeout(t);
+  }, [search]);
+
+  const { data: overview } = useQuery({
+    queryKey: ["admin-analytics-overview"],
+    queryFn: adminApi.getAnalyticsOverview,
+    staleTime: 60000,
+  });
+
+  const { data: usersData, isLoading } = useQuery({
+    queryKey: ["admin-analytics-users", debouncedSearch, page, sortBy, sortOrder, skillFilter, planFilter, activeFilter],
+    queryFn: () => adminApi.getAnalyticsUsers({
+      search: debouncedSearch || undefined, page, limit: 20,
+      sortBy, sortOrder, skill: skillFilter || undefined,
+      plan: planFilter || undefined, activeIn: activeFilter || undefined,
+    }),
+    staleTime: 30000,
+  });
+
+  const { data: userActivity } = useQuery({
+    queryKey: ["admin-user-activity", expandedId],
+    queryFn: () => adminApi.getUserActivity(expandedId!),
+    enabled: !!expandedId,
+  });
+
+  const toggleSort = (col: string) => {
+    if (sortBy === col) setSortOrder(o => o === "desc" ? "asc" : "desc");
+    else { setSortBy(col); setSortOrder("desc"); }
+    setPage(1);
+  };
+
+  const SortIcon = ({ col }: { col: string }) =>
+    sortBy === col ? (sortOrder === "desc" ? <ChevronDown size={12} /> : <ChevronUp size={12} />) : null;
+
+  const totalPages = Math.ceil((usersData?.total || 0) / 20);
+  const maxSkill = usersData?.users
+    ? Math.max(...usersData.users.map((u: any) => Math.max(...Object.values(u.skillBreakdown || {}) as number[])), 1)
+    : 1;
+
+  const fmtDate = (d?: string) => d
+    ? new Date(d).toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "2-digit" })
+    : "—";
+  const fmtTime = (d?: string) => d
+    ? new Date(d).toLocaleString("vi-VN", { hour: "2-digit", minute: "2-digit", day: "2-digit", month: "2-digit" })
+    : "—";
+
+  return (
+    <div className="space-y-6">
+      {/* Overview cards */}
+      {overview && (
+        <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
+          {[
+            { label: "Tổng users", value: overview.totalUsers, color: "text-gray-900", icon: "👥" },
+            { label: "Premium", value: overview.premiumUsers, color: "text-amber-700", icon: "👑" },
+            { label: "Active hôm nay", value: overview.activeToday, color: "text-green-700", icon: "⚡" },
+            { label: "Active 7 ngày", value: overview.activeThisWeek, color: "text-blue-700", icon: "📅" },
+            { label: "Lượt luyện tập", value: overview.totalAttempts, color: "text-purple-700", icon: "📝" },
+            { label: "Mock test hoàn thành", value: overview.totalMockTests, color: "text-green-700", icon: "🎯" },
+          ].map(({ label, value, color, icon }) => (
+            <div key={label} className="card px-4 py-3 flex items-center gap-3">
+              <span className="text-2xl">{icon}</span>
+              <div>
+                <p className={clsx("font-display font-black text-xl", color)}>{(value ?? 0).toLocaleString()}</p>
+                <p className="text-xs text-gray-500">{label}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Skill popularity */}
+      {overview?.bySkill?.length > 0 && (
+        <div className="card p-4">
+          <p className="text-xs font-black uppercase tracking-widest text-gray-400 mb-3">🏅 Kỹ năng được luyện nhiều nhất (30 ngày)</p>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            {["SPEAKING", "WRITING", "READING", "LISTENING"].map(skill => {
+              const found = overview.bySkill.find((s: any) => s.skill === skill);
+              const total30 = overview.bySkill.reduce((s: number, r: any) => s + r.count, 0);
+              const cnt = found?.count || 0;
+              const pct = total30 > 0 ? Math.round((cnt / total30) * 100) : 0;
+              return (
+                <div key={skill} className="bg-gray-50 rounded-xl p-3 text-center">
+                  <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden mb-2">
+                    <div className="h-full rounded-full" style={{ width: `${pct}%`, background: SKILL_COLORS[skill] }} />
+                  </div>
+                  <p className="font-black text-lg text-gray-900">{cnt.toLocaleString()}</p>
+                  <p className="text-xs text-gray-500">{skill[0] + skill.slice(1).toLowerCase()} · {pct}%</p>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Filters */}
+      <div className="card p-4">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex items-center gap-2 flex-1 min-w-[200px] border border-gray-200 rounded-lg px-3 py-2">
+            <Search size={14} className="text-gray-400" />
+            <input value={search} onChange={e => setSearch(e.target.value)}
+              placeholder="Tìm theo email hoặc tên..."
+              className="flex-1 text-sm outline-none min-w-0" />
+          </div>
+          <select value={skillFilter} onChange={e => { setSkillFilter(e.target.value); setPage(1); }}
+            className="border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none bg-white">
+            <option value="">Tất cả kỹ năng</option>
+            {["SPEAKING", "WRITING", "READING", "LISTENING"].map(s => <option key={s} value={s}>{s}</option>)}
+          </select>
+          <select value={planFilter} onChange={e => { setPlanFilter(e.target.value); setPage(1); }}
+            className="border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none bg-white">
+            <option value="">Tất cả gói</option>
+            <option value="FREE">Free</option>
+            <option value="PREMIUM">Premium</option>
+          </select>
+          <select value={activeFilter} onChange={e => { setActiveFilter(e.target.value); setPage(1); }}
+            className="border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none bg-white">
+            <option value="">Mọi thời gian</option>
+            <option value="today">Active hôm nay</option>
+            <option value="week">Active 7 ngày</option>
+            <option value="month">Active 30 ngày</option>
+          </select>
+          {(search || skillFilter || planFilter || activeFilter) && (
+            <button onClick={() => { setSearch(""); setSkillFilter(""); setPlanFilter(""); setActiveFilter(""); setPage(1); }}
+              className="text-xs text-red-500 font-bold px-3 py-2 border border-red-200 rounded-lg hover:bg-red-50">
+              Xóa filter
+            </button>
+          )}
+          <span className="ml-auto text-xs text-gray-400 font-medium">{usersData?.total ?? 0} người dùng</span>
+        </div>
+      </div>
+
+      {/* User table */}
+      <div className="card overflow-hidden">
+        <table className="w-full text-sm">
+          <thead className="bg-gray-50 border-b border-gray-100">
+            <tr>
+              <th className="text-left px-4 py-3 text-xs font-bold text-gray-500 uppercase">
+                <button onClick={() => toggleSort("email")} className="flex items-center gap-1 hover:text-gray-700">
+                  Người dùng <SortIcon col="email" />
+                </button>
+              </th>
+              <th className="text-left px-4 py-3 text-xs font-bold text-gray-500 uppercase hidden lg:table-cell">
+                Gói / Vai trò
+              </th>
+              <th className="text-left px-4 py-3 text-xs font-bold text-gray-500 uppercase">
+                <button onClick={() => toggleSort("totalAttempts")} className="flex items-center gap-1 hover:text-gray-700">
+                  Lượt làm <SortIcon col="totalAttempts" />
+                </button>
+              </th>
+              <th className="text-left px-4 py-3 text-xs font-bold text-gray-500 uppercase hidden md:table-cell">
+                Kỹ năng
+              </th>
+              <th className="text-left px-4 py-3 text-xs font-bold text-gray-500 uppercase">
+                <button onClick={() => toggleSort("lastActive")} className="flex items-center gap-1 hover:text-gray-700">
+                  Hoạt động gần nhất <SortIcon col="lastActive" />
+                </button>
+              </th>
+              <th className="w-8" />
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-50">
+            {isLoading ? (
+              <tr><td colSpan={6} className="py-12 text-center text-gray-400">Đang tải...</td></tr>
+            ) : !usersData?.users?.length ? (
+              <tr><td colSpan={6} className="py-12 text-center text-gray-400">Không có dữ liệu</td></tr>
+            ) : usersData.users.map((u: any) => (
+              <React.Fragment key={u.id}>
+                <tr className="hover:bg-gray-50 cursor-pointer" onClick={() => setExpandedId(expandedId === u.id ? null : u.id)}>
+                  <td className="px-4 py-3">
+                    <p className="font-semibold text-gray-900 text-sm">{u.fullName || "—"}</p>
+                    <p className="text-xs text-gray-400">{u.email}</p>
+                  </td>
+                  <td className="px-4 py-3 hidden lg:table-cell">
+                    <span className={clsx("text-[10px] font-black px-2 py-0.5 rounded-full",
+                      u.plan === "PREMIUM" ? "bg-amber-100 text-amber-800" : "bg-gray-100 text-gray-500")}>
+                      {u.plan}
+                    </span>
+                    {u.role === "admin" && <span className="ml-1 text-[10px] font-black px-2 py-0.5 rounded-full bg-red-100 text-red-700">ADMIN</span>}
+                  </td>
+                  <td className="px-4 py-3">
+                    <p className="font-black text-gray-900">{u.totalAttempts} <span className="text-[10px] font-normal text-gray-400">luyện</span></p>
+                    {u.mockCount > 0 && <p className="text-[10px] text-purple-600 font-bold">{u.mockCount} mock test</p>}
+                    {u.avgScore != null && <p className="text-[10px] text-gray-400">avg {u.avgScore}</p>}
+                  </td>
+                  <td className="px-4 py-3 hidden md:table-cell">
+                    <div className="space-y-1 w-36">
+                      {Object.entries(u.skillBreakdown || {}).map(([skill, cnt]) => (
+                        <SkillBar key={skill} skill={skill} count={cnt as number} max={maxSkill} />
+                      ))}
+                    </div>
+                  </td>
+                  <td className="px-4 py-3">
+                    <p className="text-xs text-gray-700">{fmtTime(u.lastActiveAt)}</p>
+                    <p className="text-[10px] text-gray-400">Đăng ký: {fmtDate(u.createdAt)}</p>
+                  </td>
+                  <td className="px-4 py-3 text-gray-300">
+                    {expandedId === u.id ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                  </td>
+                </tr>
+
+                {/* Expanded detail row */}
+                {expandedId === u.id && (
+                  <tr className="bg-blue-50/40">
+                    <td colSpan={6} className="px-6 py-4">
+                      {!userActivity ? (
+                        <p className="text-xs text-gray-400">Đang tải chi tiết...</p>
+                      ) : (
+                        <div className="space-y-4">
+                          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                            {/* By question type */}
+                            <div>
+                              <p className="text-xs font-black uppercase tracking-widest text-gray-500 mb-2">📊 Loại bài luyện tập</p>
+                              <div className="space-y-1.5">
+                                {userActivity.byType?.slice(0, 10).map((t: any) => (
+                                  <div key={t.type} className="flex items-center gap-2 text-xs">
+                                    <span className={clsx("text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0", SKILL_BG[t.skill] || "bg-gray-100 text-gray-600")}>
+                                      {t.skill?.[0]}
+                                    </span>
+                                    <span className="flex-1 text-gray-600 truncate">
+                                      {t.type.replace(/_/g, " ").replace(/^SPEAKING |^WRITING |^READING |^LISTENING /, "")}
+                                    </span>
+                                    <span className="font-bold text-gray-900 shrink-0">{t.count} lần</span>
+                                    {t.avgScore != null && <span className="text-gray-400 shrink-0">avg {t.avgScore}</span>}
+                                    {t.bestScore != null && <span className="text-green-600 font-bold shrink-0">best {Math.round(t.bestScore)}</span>}
+                                  </div>
+                                ))}
+                                {!userActivity.byType?.length && <p className="text-xs text-gray-400">Chưa có lượt làm</p>}
+                              </div>
+                            </div>
+
+                            {/* Mock test results */}
+                            <div>
+                              <p className="text-xs font-black uppercase tracking-widest text-gray-500 mb-2">🎯 Kết quả Mock Test</p>
+                              {!userActivity.mockAttempts?.length ? (
+                                <p className="text-xs text-gray-400">Chưa làm Mock Test nào</p>
+                              ) : (
+                                <div className="space-y-2">
+                                  {userActivity.mockAttempts.map((m: any) => (
+                                    <div key={m.id} className="bg-white rounded-lg border border-gray-100 p-2.5">
+                                      <div className="flex items-start justify-between gap-2">
+                                        <div className="min-w-0">
+                                          <p className="text-xs font-bold text-gray-800 truncate">{m.testCode} · {m.testTitle}</p>
+                                          <p className="text-[10px] text-gray-400">{fmtTime(m.completedAt || m.createdAt)}</p>
+                                        </div>
+                                        <div className="text-right shrink-0">
+                                          <span className={clsx("text-[10px] font-black px-1.5 py-0.5 rounded-full",
+                                            m.status === "COMPLETED" ? "bg-green-100 text-green-700" :
+                                            m.status === "IN_PROGRESS" ? "bg-yellow-100 text-yellow-700" : "bg-gray-100 text-gray-500")}>
+                                            {m.status === "COMPLETED" ? "Hoàn thành" : m.status === "IN_PROGRESS" ? "Đang làm" : "Bỏ dở"}
+                                          </span>
+                                          {m.totalScore != null && (
+                                            <p className="text-sm font-black text-brand-gold mt-0.5">{Math.round(m.totalScore)}<span className="text-[10px] text-gray-400">/90</span></p>
+                                          )}
+                                        </div>
+                                      </div>
+                                      {m.sectionScores && (
+                                        <div className="flex gap-2 mt-1.5 flex-wrap">
+                                          {Object.entries(m.sectionScores).map(([sk, sc]) => (
+                                            <span key={sk} className={clsx("text-[10px] font-bold px-1.5 py-0.5 rounded", SKILL_BG[sk.toUpperCase()] || "bg-gray-100 text-gray-500")}>
+                                              {sk[0].toUpperCase() + sk.slice(1, 3)}: {Math.round(sc as number)}
+                                            </span>
+                                          ))}
+                                        </div>
+                                      )}
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Recent practice attempts table */}
+                          <div>
+                            <p className="text-xs font-black uppercase tracking-widest text-gray-500 mb-2">🕐 Lịch sử bài luyện tập gần đây</p>
+                            <div className="overflow-x-auto">
+                              <table className="w-full text-xs">
+                                <thead>
+                                  <tr className="border-b border-gray-100">
+                                    <th className="text-left py-1.5 pr-3 font-bold text-gray-400">Kỹ năng</th>
+                                    <th className="text-left py-1.5 pr-3 font-bold text-gray-400">Loại bài</th>
+                                    <th className="text-left py-1.5 pr-3 font-bold text-gray-400">Mã đề</th>
+                                    <th className="text-right py-1.5 pr-3 font-bold text-gray-400">Điểm</th>
+                                    <th className="text-right py-1.5 font-bold text-gray-400">Thời gian</th>
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-gray-50">
+                                  {userActivity.recentAttempts?.map((a: any) => (
+                                    <tr key={a.id} className="hover:bg-gray-50">
+                                      <td className="py-1.5 pr-3">
+                                        <span className={clsx("text-[10px] font-bold px-1.5 py-0.5 rounded", SKILL_BG[a.questionSkill] || "bg-gray-100 text-gray-500")}>
+                                          {a.questionSkill}
+                                        </span>
+                                      </td>
+                                      <td className="py-1.5 pr-3 text-gray-600 max-w-[140px] truncate">
+                                        {a.questionType?.replace(/_/g, " ").replace(/^SPEAKING |^WRITING |^READING |^LISTENING /, "")}
+                                      </td>
+                                      <td className="py-1.5 pr-3 font-mono text-gray-500">{a.questionCode}</td>
+                                      <td className="py-1.5 pr-3 text-right">
+                                        {a.totalScore != null
+                                          ? <span className="font-black text-gray-900">{Math.round(a.totalScore)}</span>
+                                          : <span className="text-gray-300">—</span>}
+                                      </td>
+                                      <td className="py-1.5 text-right text-gray-400">{fmtTime(a.createdAt)}</td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                              {!userActivity.recentAttempts?.length && <p className="text-xs text-gray-400 py-2">Chưa có lượt làm</p>}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </td>
+                  </tr>
+                )}
+              </React.Fragment>
+            ))}
+          </tbody>
+        </table>
+
+        {/* Pagination */}
+        {totalPages > 1 && (
+          <div className="px-4 py-3 border-t border-gray-100 flex items-center justify-between text-xs text-gray-500">
+            <span>{usersData?.total} users · Trang {page}/{totalPages}</span>
+            <div className="flex items-center gap-1">
+              <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page <= 1}
+                className="w-7 h-7 rounded border border-gray-200 flex items-center justify-center hover:bg-gray-50 disabled:opacity-40">
+                <ChevronLeft size={12} />
+              </button>
+              {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                const p = Math.min(Math.max(page - 2, 1), totalPages - 4) + i;
+                return p <= totalPages ? (
+                  <button key={p} onClick={() => setPage(p)}
+                    className={clsx("w-7 h-7 rounded border text-xs font-bold", p === page ? "bg-brand-gold border-brand-gold text-white" : "border-gray-200 hover:bg-gray-50")}>
+                    {p}
+                  </button>
+                ) : null;
+              })}
+              <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page >= totalPages}
+                className="w-7 h-7 rounded border border-gray-200 flex items-center justify-center hover:bg-gray-50 disabled:opacity-40">
+                <ChevronRight size={12} />
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── Main AdminPage ────────────────────────────────────────────────────────────
 export default function AdminPage() {
   const navigate = useNavigate();
   const { user } = useAuthStore();
-  const [tab, setTab] = React.useState<Tab>("questions");
+  const [tab, setTab] = React.useState<Tab>("analytics");
 
   React.useEffect(() => {
     if (user && user.role !== "admin") navigate("/dashboard", { replace: true });
@@ -853,8 +1239,9 @@ export default function AdminPage() {
   const { data: adminStats } = useQuery({ queryKey: ["admin-stats"], queryFn: adminApi.getStats });
 
   const TABS: { key: Tab; label: string; icon: React.ElementType }[] = [
-    { key: "questions",    label: "Question Bank",      icon: ClipboardList },
-    { key: "users",        label: "Quản lý tài khoản", icon: Users          },
+    { key: "analytics",    label: "Thống kê",           icon: BarChart3      },
+    { key: "questions",    label: "Question Bank",      icon: ClipboardList  },
+    { key: "users",        label: "Quản lý tài khoản", icon: Users           },
     { key: "mock-results", label: "Kết quả Mock Test",  icon: Settings2      },
     { key: "payments",     label: "Thanh toán",         icon: CreditCard     },
   ];
@@ -890,6 +1277,7 @@ export default function AdminPage() {
         </div>
 
         <div className="px-8 py-6">
+          {tab === "analytics"    && <AnalyticsTab />}
           {tab === "questions"    && <QuestionsTab />}
           {tab === "users"        && <UsersTab />}
           {tab === "mock-results" && <MockResultsTab />}
