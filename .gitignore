@@ -18,7 +18,7 @@ build/
 # Build output
 backend/dist/
 frontend/dist/
-stitch-skills-main
+python-scorer/.pytest_cache/
 # Environment files
 .env
 .env.local
@@ -45,9 +45,11 @@ Thumbs.db
 # Uploads (user-generated content, not code)
 backend/uploads/
 
-# DB sync temp files (never commit)
+# Local/temporary backups and database dumps
+*.sql
+*.dump
+*.bak
 backend/fly_local_to_railway.tmp.dump
-backend/fly_local_backup.sql
 
 # Python scorer temp files
 python-scorer/__pycache__/
@@ -72,9 +74,14 @@ test-results/
 # Claude settings (local only)
 .claude/
 
-# GCP service account keys (never commit!)
-*.json
-!package.json
-!package-lock.json
-!tsconfig.json
-!nest-cli.json
+# Local tool/runtime folders
+.venv/
+chrome-cdp-profile/
+
+# Secrets and signing files
+*-service-account.json
+*credentials*.json
+*key*.json
+frontend/*.jks
+frontend/android/*.jks
+frontend/android/key.properties

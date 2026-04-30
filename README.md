@@ -125,6 +125,14 @@ fly-edu/
 │   │   └── common/         # Guards, decorators
 │   └── package.json
 │
+├── python-scorer/            # Independent AI scoring service (Python)
+│   ├── core/
+│   ├── services/
+│   └── requirements.txt
+│
+├── docs/                     # Deployment and release docs
+│   └── GOOGLE_PLAY_STORE.md
+│
 └── frontend/
     ├── src/
     │   ├── api/            # Axios API client
@@ -143,6 +151,12 @@ fly-edu/
     │   └── types/          # TypeScript types
     └── package.json
 ```
+
+## Release Hygiene (Google Play)
+
+- Khong commit file nhay cam: `.env`, service-account json, keystore `.jks`, `key.properties`.
+- Khong de file local/noi bo trong repo: database dump (`.sql`, `.dump`), browser profile, virtual env.
+- Build Android tu local machine/CI va luu secret bang bien moi truong hoac secret manager.
 
 ## Seed Data
 

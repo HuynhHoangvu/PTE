@@ -199,6 +199,17 @@ def _score_content_repeat_sentence(accuracy_pct: float) -> int:
     else: return 0
 
 
+def _speaking_breakdown(content: int, pronunciation: int, fluency: int, content_max: int = 5) -> dict:
+    return {
+        "content": content,
+        "content_max": content_max,
+        "pronunciation": pronunciation,
+        "pronunciation_max": 5,
+        "fluency": fluency,
+        "fluency_max": 5,
+    }
+
+
 def _score_fluency_repeat_sentence(wpm: float, hesitation_count: int = 0, audio_buffer: Optional[bytes] = None) -> int:
     score = 5.0
     if 130 <= wpm <= 170: score = 5.0
@@ -480,7 +491,7 @@ async def _transcribe_with_meta(audio_base64: str, mime_type: str, initial_promp
 
 async def score_read_aloud(q: QuestionData, transcription: str, duration: float, audio_buffer: Optional[bytes] = None, avg_logprob: float = -0.5, speech_duration: float = 0.0) -> ScoreResult:
     if not transcription:
-        return ScoreResult(total_score=0, score_breakdown={"content": 0, "pronunciation": 0, "fluency": 0}, feedback="❌ No speech detected.", transcription="")
+        return ScoreResult(total_score=0, score_breakdown=_speaking_breakdown(0, 0, 0), feedback="❌ No speech detected.", transcription="")
 
     clean_ref = _clean_text(q.content or "")
     clean_rec = _clean_text(transcription)
@@ -512,14 +523,14 @@ async def score_read_aloud(q: QuestionData, transcription: str, duration: float,
             feedback_msg += f" ⚠️ Fluency -{pause_count} (paused {pause_count}× ≥2s mid-speech)."
 
     total_score = content_score + pronunciation_score + fluency_score
-    breakdown = {"content": content_score, "pronunciation": pronunciation_score, "fluency": fluency_score}
+    breakdown = _speaking_breakdown(content_score, pronunciation_score, fluency_score)
 
     return ScoreResult(total_score=total_score, score_breakdown=breakdown, feedback=feedback_msg, transcription=transcription)
 
 
 async def score_repeat_sentence(q: QuestionData, transcription: str, duration: float, audio_buffer: Optional[bytes] = None, avg_logprob: float = -0.5) -> ScoreResult:
     if not transcription:
-        return ScoreResult(total_score=0, score_breakdown={"content":0, "pronunciation":0, "fluency":0}, feedback="❌ No speech detected.", transcription="")
+        return ScoreResult(total_score=0, score_breakdown=_speaking_breakdown(0, 0, 0, content_max=3), feedback="❌ No speech detected.", transcription="")
 
     ref_text = _repeat_sentence_reference_text(q)
     clean_ref = _clean_text(ref_text)
@@ -544,12 +555,12 @@ async def score_repeat_sentence(q: QuestionData, transcription: str, duration: f
             feedback_msg += f" ⚠️ Fluency -{pause_count} (paused {pause_count}× ≥2s mid-speech)."
 
     total_score = content_score + pronunciation_score + fluency_score
-    return ScoreResult(total_score=total_score, score_breakdown={"content":content_score, "pronunciation":pronunciation_score, "fluency":fluency_score}, feedback=feedback_msg, transcription=transcription)
+    return ScoreResult(total_score=total_score, score_breakdown=_speaking_breakdown(content_score, pronunciation_score, fluency_score, content_max=3), feedback=feedback_msg, transcription=transcription)
 
 
 async def score_speaking_extended(q: QuestionData, transcription: str, qtype: QuestionType, duration: float, audio_buffer: Optional[bytes] = None, avg_logprob: float = -0.5) -> ScoreResult:
     if not transcription:
-        return ScoreResult(total_score=0, score_breakdown={"content": 0, "pronunciation": 0, "fluency": 0}, feedback="❌ No speech detected.", transcription="")
+        return ScoreResult(total_score=0, score_breakdown=_speaking_breakdown(0, 0, 0), feedback="❌ No speech detected.", transcription="")
     
     ref_source = q.correct_answer or q.suggested_answer or q.content or q.title or ""
     
@@ -592,7 +603,7 @@ async def score_speaking_extended(q: QuestionData, transcription: str, qtype: Qu
         total = content_score + fluency_score + pronunciation_score
         return ScoreResult(
             total_score=total,
-            score_breakdown={"content": content_score, "pronunciation": pronunciation_score, "fluency": fluency_score},
+            score_breakdown=_speaking_breakdown(content_score, pronunciation_score, fluency_score),
             feedback=feedback_msg,
             transcription=transcription
         )
@@ -641,11 +652,7 @@ async def score_speaking_extended(q: QuestionData, transcription: str, qtype: Qu
     total = content_score + fluency_score + pronunciation_score
     return ScoreResult(
         total_score=total, 
-        score_breakdown={
-            "content": content_score, 
-            "pronunciation": pronunciation_score, 
-            "fluency": fluency_score
-        }, 
+        score_breakdown=_speaking_breakdown(content_score, pronunciation_score, fluency_score), 
         feedback=feedback_msg, 
         transcription=transcription
     )
@@ -653,7 +660,7 @@ async def score_speaking_extended(q: QuestionData, transcription: str, qtype: Qu
 
 async def score_summarise_group_discussion(q: QuestionData, transcription: str, duration: float, audio_buffer: Optional[bytes] = None, avg_logprob: float = -0.5) -> ScoreResult:
     if not transcription:
-        return ScoreResult(total_score=0, score_breakdown={"content": 0, "pronunciation": 0, "fluency": 0}, feedback="❌ No speech detected.", transcription="")
+        return ScoreResult(total_score=0, score_breakdown=_speaking_breakdown(0, 0, 0), feedback="❌ No speech detected.", transcription="")
 
     # Content: keyword overlap với suggestedAnswer (bản tóm tắt mẫu)
     # Không dùng content (transcript gốc) vì quá dài và nhiễu keyword
@@ -698,7 +705,7 @@ async def score_summarise_group_discussion(q: QuestionData, transcription: str, 
     total = content_score + fluency_score + pronunciation_score
     return ScoreResult(
         total_score=total,
-        score_breakdown={"content": content_score, "pronunciation": pronunciation_score, "fluency": fluency_score},
+        score_breakdown=_speaking_breakdown(content_score, pronunciation_score, fluency_score),
         feedback=feedback_msg,
         transcription=transcription,
     )

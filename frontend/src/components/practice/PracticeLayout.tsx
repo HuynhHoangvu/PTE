@@ -5,6 +5,7 @@ import { questionsApi, attemptsApi } from '../../api';
 import { Question, QUESTION_TYPE_LABELS } from '../../types';
 import { Button, QuestionListDrawer, AnalysisTable } from '../ui';
 import { clsx } from 'clsx';
+import { DETERMINISTIC_TYPES, getMaxScore, normalizeHistoryScore } from '../../constants/scoring';
 
 function useBookmark(questionId: string) {
   const key = 'fly_edu_bookmarks';
@@ -85,20 +86,15 @@ export function PracticeLayout({ questionId, children }: PracticeLayoutProps) {
   const skillPath = question.skill.toLowerCase();
   const attempts = attemptsData || [];
 
-  const DETERMINISTIC_TYPES = new Set([
-    'READING_MCQ_MULTIPLE_ANSWER', 'LISTENING_MCQ_MULTIPLE_ANSWER',
-    'READING_MCQ_SINGLE_ANSWER', 'LISTENING_MCQ_SINGLE_ANSWER',
-    'LISTENING_HIGHLIGHT_CORRECT_SUMMARY', 'LISTENING_SELECT_MISSING_WORD',
-    'READING_RE_ORDER_PARAGRAPH', 'LISTENING_HIGHLIGHT_INCORRECT_WORD',
-    'READING_FIB_R_W', 'READING_FIB_R', 'LISTENING_FIB_L', 'LISTENING_DICTATION',
-  ]);
   const isDeterministic = DETERMINISTIC_TYPES.has(question.type);
+  const qMax = getMaxScore(question.type);
 
   const analysisRows = attempts.map((a: any) => ({
     id: a.id,
     timer: new Date(a.createdAt).toLocaleString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' }),
     status: a.status,
-    score: isDeterministic ? undefined : a.totalScore,
+    score: normalizeHistoryScore(a.totalScore, question.type),
+    scoreMax: isDeterministic ? undefined : qMax,
     feedback: isDeterministic ? a.feedback : undefined,
     createdAt: a.createdAt,
   }));

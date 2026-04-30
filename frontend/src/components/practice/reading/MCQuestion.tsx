@@ -136,7 +136,7 @@ export function MCQuestion({
             onClick={() => submitMutation.mutate()}
             disabled={selected.length === 0 || submitMutation.isPending}
           >
-            Chấm điểm
+            {submitMutation.isPending ? "Dang cham..." : "Chấm điểm"}
           </Button>
         </div>
       )}

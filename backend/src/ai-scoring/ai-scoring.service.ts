@@ -228,28 +228,51 @@ export class AiScoringService {
 
   // ── Speaking: Read Aloud ─────────────────────────────────────────────────
   private async scoreReadAloud(question: Question, transcription: string) {
-    const prompt = `You are a PTE Academic examiner scoring a Read Aloud response.
+    const prompt = `You are an expert PTE Academic coach AND phonetics tutor. Score this Read Aloud response and provide specific, actionable Vietnamese-language coaching.
 
 Original text:
 <original_text>
 ${question.content}
 </original_text>
 
-Student transcription:
+Student transcription (what they actually said):
 <student_text>
 ${transcription}
 </student_text>
 
-Score on these criteria (each out of 90):
-1. Content (0-90): How many words from original are present in correct order
-2. Pronunciation (0-90): Based on likely pronunciation clarity from the text
-3. Fluency (0-90): Based on naturalness of response
+Scoring guidelines (be fair and encouraging — most motivated learners should score 60-80%):
+1. content (0-5): Words from original in correct order.
+   5=all correct, 4=1-3 errors, 3=4-6 errors, 2=7-9 errors, 1=10-12 errors, 0=many errors.
+   Ignore minor transcription artifacts (um, uh, slight repetitions).
+2. pronunciation (0-5): Overall phonetic clarity. Native-speaker perfection is NOT required.
+   5=very clear, 4=clear with minor accent, 3=mostly clear, 2=many unclear words, 1=hard to understand, 0=very unclear.
+   Default to 4 for typical learners. Only go to 3 if multiple words are clearly mispronounced.
+3. fluency (0-5): Natural pace and rhythm.
+   5=very smooth, 4=mostly smooth with minor pauses, 3=some pauses but readable, 2=frequent hesitations, 1=very choppy, 0=extremely halting.
+   Default to 4 unless clearly halting. If 0 pauses detected, give at least 4.
 
-Return ONLY valid JSON: {"content": number, "pronunciation": number, "fluency": number, "feedback": "2-3 sentences of specific feedback", "totalScore": number}
-totalScore = average of the three scores rounded to nearest integer.`;
+Find up to 3 specifically mispronounced or missing words (skip if no clear errors).
 
-    const result = await this.callGemini(prompt, ['content', 'pronunciation', 'fluency']);
-    return { ...result, transcription };
+Return ONLY valid JSON (no markdown, no extra text):
+{
+  "content": number,
+  "pronunciation": number,
+  "fluency": number,
+  "totalScore": number,
+  "feedback": "1-2 sentence encouraging assessment in Vietnamese",
+  "tutor_tip": "One specific actionable coaching tip in Vietnamese. Example: 'Bạn bỏ sót từ X, hãy chú ý...' hoặc 'Từ Y bạn đọc chưa rõ âm /ʒ/, thử cong lưỡi nhẹ...'",
+  "word_errors": [
+    {"word": "exactWord", "issue": "brief issue", "tip": "specific fix tip in Vietnamese"}
+  ]
+}
+totalScore = content + pronunciation + fluency (max 15).`;
+
+    const raw = await this.callGemini(prompt, ['content', 'pronunciation', 'fluency']);
+    const { scoreBreakdown, totalScore } = this.normalizeBreakdown(
+      raw.scoreBreakdown || {},
+      { content: 5, pronunciation: 5, fluency: 5 },
+    );
+    return { ...raw, scoreBreakdown, totalScore, transcription };
   }
 
   // ── Speaking: Repeat Sentence ─────────────────────────────────────────────
@@ -260,7 +283,7 @@ totalScore = average of the three scores rounded to nearest integer.`;
         : '') ||
       question.suggestedAnswer?.trim() ||
       '';
-    const prompt = `You are a PTE Academic examiner scoring a Repeat Sentence response.
+    const prompt = `You are an expert PTE Academic coach. Score this Repeat Sentence response.
 
 Original sentence:
 <original_text>
@@ -272,15 +295,29 @@ Student said:
 ${transcription}
 </student_text>
 
-Score:
-1. Content (0-90): Accuracy of words repeated
-2. Pronunciation (0-90): Quality of pronunciation
-3. Fluency (0-90): Smoothness of delivery
+Scoring guidelines (be fair — most motivated learners should score 60-80%):
+1. content (0-3): Word accuracy. 3=all/most words correct, 2=some substitutions, 1=many changes, 0=completely different.
+2. pronunciation (0-5): Clarity. Default 4 for typical learners. Only below 4 if clearly mispronouncing multiple words. 5=excellent, 4=good, 3=several unclear words, 2=mostly unclear, 1=very poor, 0=incomprehensible.
+3. fluency (0-5): Rhythm/pace. Default 4. 5=smooth, 4=minor pauses, 3=some pauses, 2=frequent halts, 1=very choppy, 0=broken.
 
-Return ONLY valid JSON: {"content": number, "pronunciation": number, "fluency": number, "feedback": "brief feedback", "totalScore": number}`;
+Return ONLY valid JSON:
+{
+  "content": number,
+  "pronunciation": number,
+  "fluency": number,
+  "totalScore": number,
+  "feedback": "brief encouraging Vietnamese assessment",
+  "tutor_tip": "One specific tip in Vietnamese — e.g. 'Bạn đổi từ X thành Y, nhớ luyện nghe nhiều hơn để ghi nhớ từ chính xác'",
+  "word_errors": [{"word": "exactWord", "issue": "brief", "tip": "tip in Vietnamese"}]
+}
+totalScore = content + pronunciation + fluency (max 13).`;
 
-    const result = await this.callGemini(prompt, ['content', 'pronunciation', 'fluency']);
-    return { ...result, transcription };
+    const raw = await this.callGemini(prompt, ['content', 'pronunciation', 'fluency']);
+    const { scoreBreakdown, totalScore } = this.normalizeBreakdown(
+      raw.scoreBreakdown || {},
+      { content: 3, pronunciation: 5, fluency: 5 },
+    );
+    return { ...raw, scoreBreakdown, totalScore, transcription };
   }
 
   // ── Speaking: Extended (Describe Image, Retell, SGD, RTS) ────────────────
@@ -292,7 +329,7 @@ Return ONLY valid JSON: {"content": number, "pronunciation": number, "fluency": 
       [QuestionType.SPEAKING_RESPOND_TO_SITUATION]: 'Respond to a Situation',
     }[type];
 
-    const prompt = `You are a PTE Academic examiner scoring a "${taskName}" response.
+    const prompt = `You are an expert PTE Academic coach scoring a "${taskName}" response.
 
 Question context:
 <original_text>
@@ -304,27 +341,42 @@ Student response:
 ${transcription}
 </student_text>
 
-Score:
-1. Content (0-90): Relevance and completeness
-2. Pronunciation (0-90): Clarity
-3. Fluency (0-90): Natural delivery
-4. Vocabulary (0-90): Word choice appropriateness
+Scoring guidelines (be fair — most motivated learners should score 60-80%):
+1. content (0-5): Relevance and completeness of ideas. Give credit for reasonable attempts even if imperfect.
+2. pronunciation (0-5): Phonetic clarity. Default 4 for typical learners. Only penalize if multiple words clearly mispronounced. 5=excellent, 4=good, 3=several unclear words, 2=mostly unclear, 1=very poor, 0=incomprehensible.
+3. fluency (0-5): Natural flow. Default 4. Penalize only for frequent hesitations or very unnatural pace. If speech sounds natural, give 4-5.
 
-Return ONLY valid JSON: {"content": number, "pronunciation": number, "fluency": number, "vocabulary": number, "feedback": "specific feedback", "totalScore": number}
-totalScore = average of all four.`;
+Return ONLY valid JSON:
+{
+  "content": number,
+  "pronunciation": number,
+  "fluency": number,
+  "totalScore": number,
+  "feedback": "2-3 sentence encouraging Vietnamese assessment",
+  "tutor_tip": "Most important coaching point in Vietnamese. Be specific: mention a real word or phrase pattern from the response.",
+  "word_errors": [{"word": "word", "issue": "issue", "tip": "Vietnamese tip"}]
+}
+totalScore = content + pronunciation + fluency (max 15).`;
 
-    const result = await this.callGemini(prompt, ['content', 'pronunciation', 'fluency', 'vocabulary']);
-    return { ...result, transcription };
+    const raw = await this.callGemini(prompt, ['content', 'pronunciation', 'fluency']);
+    const { scoreBreakdown, totalScore } = this.normalizeBreakdown(
+      raw.scoreBreakdown || {},
+      { content: 5, pronunciation: 5, fluency: 5 },
+    );
+    return { ...raw, scoreBreakdown, totalScore, transcription };
   }
 
   // ── Speaking: Answer Short Question ──────────────────────────────────────
   private async scoreAnswerShortQuestion(question: Question, transcription: string) {
     const correct = question.correctAnswer;
-    const score = transcription?.toLowerCase().includes(String(correct).toLowerCase()) ? 90 : 0;
+    const isCorrect = transcription?.toLowerCase().includes(String(correct).toLowerCase());
     return {
-      totalScore: score,
-      scoreBreakdown: { content: score },
-      feedback: score > 0 ? 'Correct answer!' : `Expected: "${correct}"`,
+      totalScore: isCorrect ? 1 : 0,
+      scoreBreakdown: { content: isCorrect ? 1 : 0, content_max: 1 },
+      feedback: isCorrect ? 'Chính xác! ✅' : `Câu trả lời mong đợi: "${correct}"`,
+      tutorTip: isCorrect ? '' : `Đáp án đúng là "${correct}". Hãy nghe lại câu hỏi và ghi nhớ từ khóa chính.`,
+      wordErrors: [],
+      vocabSuggestions: [],
       transcription,
     };
   }
@@ -332,34 +384,57 @@ totalScore = average of all four.`;
   // ── Writing: Summarize Written Text ──────────────────────────────────────
   private async scoreSWT(question: Question, textAnswer: string) {
     const wordCount = (textAnswer || '').split(/\s+/).filter(Boolean).length;
-    const prompt = `You are a PTE Academic examiner scoring a Summarize Written Text response.
+    const sentenceCount = (textAnswer || '').replace(/!/g, '.').replace(/\?/g, '.').split('.').filter(s => s.trim()).length;
+    const formOk = wordCount >= 5 && wordCount <= 75 && sentenceCount <= 2;
+    const prompt = `You are an expert PTE Academic coach scoring a Summarize Written Text response.
 
 Original passage:
 <original_text>
-${question.content?.substring(0, 500)}...
+${question.content?.substring(0, 800)}...
 </original_text>
 
-Student's one-sentence summary:
+Student's summary:
 <student_text>
 ${textAnswer}
 </student_text>
-Word count: ${wordCount} (should be 5-75 words)
+Word count: ${wordCount} (target: 5-75 words, 1 sentence). formOk=${formOk}.
 
 Score:
-1. Content (0-90): Key points captured
-2. Form (0-90): Is it one grammatical sentence? ${wordCount >= 5 && wordCount <= 75 ? 'Word count OK' : 'Word count PENALTY'}
-3. Grammar (0-90): Grammatical accuracy
-4. Vocabulary (0-90): Word choice
+1. content (0-4): Key ideas captured
+2. form (0-1): One sentence, 5-75 words. If formOk=false → form=0
+3. grammar (0-2): Grammatical accuracy
+4. vocabulary (0-2): Word choice precision
 
-Return ONLY valid JSON: {"content": number, "form": number, "grammar": number, "vocabulary": number, "feedback": "feedback", "totalScore": number}`;
+Also identify up to 2 words the student used that could be upgraded to more academic vocabulary.
 
-    return this.callGemini(prompt, ['content', 'form', 'grammar', 'vocabulary']);
+Return ONLY valid JSON:
+{
+  "content": number,
+  "form": number,
+  "grammar": number,
+  "vocabulary": number,
+  "totalScore": number,
+  "feedback": "2 sentence Vietnamese assessment",
+  "tutor_tip": "One specific actionable tip in Vietnamese",
+  "vocab_suggestions": [
+    {"original": "studentWord", "better": "academicAlternative", "reason": "Why this word scores higher in Vietnamese"}
+  ]
+}
+totalScore = content+form+grammar+vocabulary (max 9).`;
+
+    const raw = await this.callGemini(prompt, ['content', 'form', 'grammar', 'vocabulary']);
+    const { scoreBreakdown, totalScore } = this.normalizeBreakdown(
+      raw.scoreBreakdown || {},
+      { content: 4, form: 1, grammar: 2, vocabulary: 2 },
+    );
+    return { ...raw, scoreBreakdown, totalScore };
   }
 
   // ── Writing: Essay ────────────────────────────────────────────────────────
   private async scoreEssay(question: Question, textAnswer: string) {
     const wordCount = (textAnswer || '').split(/\s+/).filter(Boolean).length;
-    const prompt = `You are a PTE Academic examiner scoring a Write Essay response.
+    const formOk = wordCount >= 200 && wordCount <= 300;
+    const prompt = `You are an expert PTE Academic coach AND writing tutor scoring a Write Essay response.
 
 Topic:
 <original_text>
@@ -370,18 +445,43 @@ Student's essay:
 <student_text>
 ${textAnswer}
 </student_text>
-Word count: ${wordCount} (target: 200-300 words)
+Word count: ${wordCount} (target: 200-300). formOk=${formOk}.
 
 Score:
-1. Content (0-90): Arguments, examples, relevance
-2. Development (0-90): Structure, coherence, paragraphs
-3. Grammar (0-90): Grammatical range and accuracy
-4. Vocabulary (0-90): Lexical range and precision
-5. Spelling (0-90): Spelling accuracy
+1. content (0-6): Addresses prompt with relevant ideas
+2. form (0-2): 200-300 words. 2=ok, 1=slightly off, 0=far off. formOk=${formOk}
+3. structure (0-6): Organization, cohesion, paragraphs
+4. grammar (0-2): Grammatical range and accuracy
+5. linguistic (0-6): Language variety and precision
+6. vocabulary (0-2): Breadth and appropriateness
+7. spelling (0-2): Spelling accuracy
 
-Return ONLY valid JSON: {"content": number, "development": number, "grammar": number, "vocabulary": number, "spelling": number, "feedback": "detailed feedback 3-4 sentences", "totalScore": number}`;
+Find up to 3 vocabulary upgrade opportunities — words the student used that a high-scorer would replace with more precise/academic alternatives.
 
-    return this.callGemini(prompt, ['content', 'development', 'grammar', 'vocabulary', 'spelling']);
+Return ONLY valid JSON:
+{
+  "content": number,
+  "form": number,
+  "structure": number,
+  "grammar": number,
+  "linguistic": number,
+  "vocabulary": number,
+  "spelling": number,
+  "totalScore": number,
+  "feedback": "3-4 sentence Vietnamese assessment of strengths and weaknesses",
+  "tutor_tip": "The single most impactful improvement the student can make, in Vietnamese. Be specific — quote their actual text.",
+  "vocab_suggestions": [
+    {"original": "wordTheyUsed", "better": "betterAlternative", "reason": "Explanation in Vietnamese why this scores higher"}
+  ]
+}
+totalScore = sum of all 7 criteria (max 26).`;
+
+    const raw = await this.callGemini(prompt, ['content', 'form', 'structure', 'grammar', 'linguistic', 'vocabulary', 'spelling']);
+    const { scoreBreakdown, totalScore } = this.normalizeBreakdown(
+      raw.scoreBreakdown || {},
+      { content: 6, form: 2, structure: 6, grammar: 2, linguistic: 6, vocabulary: 2, spelling: 2 },
+    );
+    return { ...raw, scoreBreakdown, totalScore };
   }
 
   // ── Reading/Listening: Fill in Blanks ────────────────────────────────────
@@ -578,6 +678,7 @@ Return ONLY valid JSON: {"content": number, "development": number, "grammar": nu
   // ── Summarize Spoken Text ─────────────────────────────────────────────────
   private async scoreSST(question: Question, textAnswer: string) {
     const wordCount = (textAnswer || '').split(/\s+/).filter(Boolean).length;
+    const formOk = wordCount >= 50 && wordCount <= 70;
     const prompt = `PTE Academic examiner scoring Summarize Spoken Text.
 
 Student's written summary:
@@ -586,10 +687,55 @@ ${textAnswer}
 </student_text>
 Word count: ${wordCount} (target 50-70 words)
 
-Score: content(0-90), grammar(0-90), vocabulary(0-90), spelling(0-90), form(0-90 based on word count)
-Return ONLY JSON: {"content": n, "grammar": n, "vocabulary": n, "spelling": n, "form": n, "feedback": "...", "totalScore": n}`;
+Score using PTE Core rubric:
+1. Content (0-4): Key ideas captured
+2. Form (0-2): Word count 50-70. formOk=${formOk}
+3. Grammar (0-2): Sentence structure accuracy
+4. Vocabulary (0-2): Word choice
+5. Spelling (0-2): Spelling accuracy
 
-    return this.callGemini(prompt, ['content', 'grammar', 'vocabulary', 'spelling', 'form']);
+Return ONLY JSON: {"content": n, "grammar": n, "vocabulary": n, "spelling": n, "form": n, "feedback": "...", "totalScore": n}
+totalScore = sum of all five (max 12).`;
+
+    const raw = await this.callGemini(prompt, ['content', 'grammar', 'vocabulary', 'spelling', 'form']);
+    const { scoreBreakdown, totalScore } = this.normalizeBreakdown(
+      raw.scoreBreakdown || {},
+      { content: 4, form: 2, grammar: 2, vocabulary: 2, spelling: 2 },
+    );
+    return { ...raw, scoreBreakdown, totalScore };
+  }
+
+  // ── Score normalizer ─────────────────────────────────────────────────────
+  /**
+   * Normalize each breakdown value into [0, max] and sum for totalScore.
+   *
+   * Three cases to avoid the "rawVal=6, max=5 → 0" bug from the old formula:
+   *   1. rawVal <= max         → clamp directly (normal case)
+   *   2. max < rawVal <= max*2 → slight AI overshoot, just cap at max
+   *   3. rawVal > max*2        → assume AI used 0-100 scale, scale proportionally
+   */
+  private normalizeBreakdown(
+    raw: Record<string, number>,
+    maxMap: Record<string, number>,
+  ): { scoreBreakdown: Record<string, number>; totalScore: number } {
+    const scoreBreakdown: Record<string, number> = {};
+    let totalScore = 0;
+    for (const [key, max] of Object.entries(maxMap)) {
+      const rawVal = raw[key] ?? 0;
+      const v = Math.round(rawVal);
+      let val: number;
+      if (v <= max) {
+        val = Math.max(0, v);
+      } else if (v <= max * 2) {
+        val = max;                                        // slight overshoot → cap
+      } else {
+        val = Math.min(max, Math.round((v / 100) * max)); // 0-100 scale → rescale
+      }
+      scoreBreakdown[key] = val;
+      scoreBreakdown[`${key}_max`] = max;
+      totalScore += val;
+    }
+    return { scoreBreakdown, totalScore };
   }
 
   // ── Gemini helper ─────────────────────────────────────────────────────────
@@ -635,37 +781,43 @@ Return ONLY JSON: {"content": n, "grammar": n, "vocabulary": n, "spelling": n, "
     for (const k of breakdownKeys) { if (json[k] !== undefined) scoreBreakdown[k] = json[k]; }
 
     return {
-      totalScore: Math.min(90, Math.max(0, Math.round(json.totalScore || 0))),
+      totalScore: Math.max(0, Math.round(json.totalScore || 0)), // normalizeBreakdown recalculates this
       scoreBreakdown,
       feedback: json.feedback || '',
+      tutorTip: json.tutor_tip || json.tutorTip || '',
+      wordErrors: Array.isArray(json.word_errors) ? json.word_errors : [],
+      vocabSuggestions: Array.isArray(json.vocab_suggestions) ? json.vocab_suggestions : [],
     };
   }
 
   private buildFallbackGeminiScore(breakdownKeys: string[], rawText: string) {
+    // Try to extract individual breakdown values from the raw (possibly malformed) response
     const extracted: Record<string, number> = {};
     for (const key of breakdownKeys) {
       const m = rawText.match(new RegExp(`"${key}"\\s*:\\s*(\\d{1,3})`, 'i'));
-      if (m) extracted[key] = Math.max(0, Math.min(90, Number(m[1])));
+      if (m) extracted[key] = Math.max(0, Number(m[1]));
     }
 
+    // Build scoreBreakdown with extracted values only (no magic fallback number).
+    // normalizeBreakdown() downstream will clamp to the correct max per key.
     const scoreBreakdown: Record<string, number> = {};
     for (const key of breakdownKeys) {
-      scoreBreakdown[key] = extracted[key] ?? 55;
+      scoreBreakdown[key] = extracted[key] ?? 0;
     }
 
+    // Try to extract totalScore from raw text; fall back to 0 so normalizeBreakdown sums correctly
     const totalFromPayload = rawText.match(/"totalScore"\s*:\s*(\d{1,3})/i);
     const totalScore = totalFromPayload
-      ? Math.max(0, Math.min(90, Number(totalFromPayload[1])))
-      : Math.round(
-          Object.values(scoreBreakdown).reduce((sum, v) => sum + v, 0) /
-            Math.max(1, Object.values(scoreBreakdown).length),
-        );
+      ? Math.max(0, Number(totalFromPayload[1]))
+      : 0;
 
     return {
       totalScore,
       scoreBreakdown,
-      feedback:
-        'AI trả dữ liệu không hoàn chỉnh, hệ thống dùng điểm tạm thời. Hãy thử chấm lại để có kết quả chính xác hơn.',
+      feedback: '',
+      tutorTip: '',
+      wordErrors: [],
+      vocabSuggestions: [],
     };
   }
 

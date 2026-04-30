@@ -76,5 +76,9 @@ export default {
       }
     }
   },
-  plugins: []
+  plugins: [],
+  safelist: [
+    'pb-safe', 'pt-safe',
+    { pattern: /animate-(fade-in|fade-in-up|fade-in-down|float|shimmer|wave|pulse-ring)/ },
+  ],
 }

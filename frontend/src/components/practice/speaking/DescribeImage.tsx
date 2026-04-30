@@ -1,5 +1,6 @@
 import { Question } from "../../../types";
 import { MicSection } from "../shared/MicSection";
+import { getMaxScore } from "../../../constants/scoring";
 
 export function DescribeImage({ question }: { question: Question }) {
   if (!question.imageUrl) {
@@ -41,7 +42,7 @@ export function DescribeImage({ question }: { question: Question }) {
             maxSeconds={question.responseTime || 40}
             label="Xem hình ở trên, rồi chạm mic vàng; hoặc chờ hết đếm ngược sẽ tự ghi."
             wordComparisonStatus="disabled"
-            maxScore={15}
+            maxScore={getMaxScore(question.type)}
           />
         </div>
       </div>

@@ -126,7 +126,11 @@ export function FillInBlanksRW({ question }: { question: Question }) {
           variant="ghost"
           size="sm"
           onClick={() => submitMutation.mutate()}
-          disabled={submitted}
+          disabled={
+            submitted ||
+            submitMutation.isPending ||
+            Object.keys(answers).length === 0
+          }
         >
           Chấm điểm
         </Button>

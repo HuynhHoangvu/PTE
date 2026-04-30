@@ -26,11 +26,13 @@ export function ReorderParagraphs({ question }: { question: Question }) {
   });
 
   const moveToTarget = (item: (typeof options)[0]) => {
+    if (submitted) return;
     setSource((p) => p.filter((x) => x.label !== item.label));
     setTarget((p) => [...p, item]);
   };
 
   const moveToSource = (item: (typeof options)[0]) => {
+    if (submitted) return;
     setTarget((p) => p.filter((x) => x.label !== item.label));
     setSource((p) => [...p, item]);
   };
@@ -93,7 +95,7 @@ export function ReorderParagraphs({ question }: { question: Question }) {
           variant="ghost"
           size="sm"
           onClick={() => submitMutation.mutate()}
-          disabled={target.length === 0 || submitted}
+          disabled={target.length === 0 || submitted || submitMutation.isPending}
         >
           Chấm điểm
         </Button>

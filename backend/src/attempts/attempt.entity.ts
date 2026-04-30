@@ -67,6 +67,16 @@ export class Attempt {
   @Column({ type: 'text', nullable: true })
   feedback: string;
 
+  // AI Tutor enriched data
+  @Column({ type: 'text', nullable: true })
+  tutorTip: string;
+
+  @Column({ type: 'jsonb', nullable: true })
+  wordErrors: { word: string; issue: string; tip: string }[];
+
+  @Column({ type: 'jsonb', nullable: true })
+  vocabSuggestions: { original: string; better: string; reason: string }[];
+
   // Transcription from Whisper (speaking tasks)
   @Column({ type: 'text', nullable: true })
   transcription: string;

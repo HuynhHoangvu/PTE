@@ -23,7 +23,7 @@ from core.whisper_engine import get_whisper_model
 from services.speaking import (
     score_read_aloud, score_repeat_sentence, score_speaking_extended,
     score_summarise_group_discussion, score_answer_short_question,
-    assess_pronunciation_from_audio, _transcribe_with_meta,
+    assess_pronunciation_from_audio, _speaking_breakdown, _transcribe_with_meta,
     PHASE2_AVAILABLE, detect_voice_activity
 )
 from services.writing import score_swt, score_essay, score_sst, generate_sst_model_answer
@@ -84,7 +84,12 @@ async def score_attempt(req: ScoreRequest) -> ScoreResult:
                     if not vad_result.get("has_speech", False):
                         return ScoreResult(
                             total_score=0,
-                            score_breakdown={"content": 0, "pronunciation": 0, "fluency": 0},
+                            score_breakdown=_speaking_breakdown(
+                                0,
+                                0,
+                                0,
+                                content_max=3 if qtype == QuestionType.SPEAKING_REPEAT_SENTENCE else 5,
+                            ),
                             feedback="❌ No speech detected. Please try again.",
                             transcription=""
                         )

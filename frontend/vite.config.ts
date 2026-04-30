@@ -6,7 +6,10 @@ export default defineConfig({
   base: './',
   server: {
     port: 5173,
-    host: '0.0.0.0', // allow Docker / LAN access
+    host: '0.0.0.0',
+    watch: {
+      ignored: ['**/android/**', '**/ios/**', '**/node_modules/**'],
+    },
     proxy: {
       '/api': {
         target: process.env.BACKEND_URL || 'http://127.0.0.1:3000',

@@ -116,6 +116,7 @@ interface AudioPlayerProps {
   countdownSeconds?: number;
   speed?: number;
   onCountdownEnd?: () => void;
+  onEnded?: () => void;
   showSpeedControl?: boolean;
 }
 
@@ -124,6 +125,7 @@ export function AudioPlayer({
   countdownSeconds = 0,
   speed = 1,
   onCountdownEnd,
+  onEnded,
   showSpeedControl,
 }: AudioPlayerProps) {
   const [playing, setPlaying] = React.useState(false);
@@ -183,7 +185,10 @@ export function AudioPlayer({
             setCurrentTime(audioRef.current?.currentTime || 0)
           }
           onLoadedMetadata={() => setDuration(audioRef.current?.duration || 0)}
-          onEnded={() => setPlaying(false)}
+          onEnded={() => {
+            setPlaying(false);
+            onEnded?.();
+          }}
         />
       )}
       <div className="flex items-center gap-3">
@@ -288,8 +293,60 @@ export function ScorePanel({
   feedback?: string;
   maxScore?: number;
 }) {
+  const scoreEntries = breakdown
+    ? Object.entries(breakdown).filter(
+        ([k, v]) =>
+          !k.endsWith("_max") &&
+          ![
+            "details",
+            "total",
+            "total_max",
+            "pte_score",
+            "phase2",
+            "word_alignment",
+          ].includes(k) &&
+          typeof v === "number",
+      )
+    : [];
+  const rubricMaxFor = (key: string) => {
+    const explicitMax = breakdown ? Number((breakdown as any)[`${key}_max`]) : NaN;
+    if (Number.isFinite(explicitMax) && explicitMax > 0) return explicitMax;
+    if (maxScore === 1) return 1;
+    if (maxScore === 9) return key === "content" ? 4 : key === "form" ? 1 : 2;
+    if (maxScore === 13) return key === "content" ? 3 : 5;
+    if (maxScore === 15) return 5;
+    return maxScore;
+  };
+  const legacyScaledToRubric = (value: number, rubricMax: number) => {
+    if (value <= rubricMax) return value;
+    if (value >= 60) return rubricMax;
+    if (value >= 40) return Math.max(0, rubricMax - 1);
+    if (value > 0) return Math.max(1, rubricMax - 2);
+    return 0;
+  };
+  const hasPteScaledBreakdown =
+    maxScore <= 15 &&
+    scoreEntries.some(([k, v]) => (v as number) > rubricMaxFor(k));
+  const displayScoreEntries = scoreEntries.map(([k, v]) => {
+    const componentMax = rubricMaxFor(k);
+    const rawValue = v as number;
+    const displayValue = hasPteScaledBreakdown
+      ? legacyScaledToRubric(rawValue, componentMax)
+      : rawValue;
+    return { key: k, value: displayValue, max: componentMax };
+  });
+  const displayTotalScore = hasPteScaledBreakdown
+    ? Math.min(
+        maxScore,
+        displayScoreEntries.reduce((sum, item) => sum + item.value, 0),
+      )
+    : totalScore;
+  const displayMaxScore = maxScore;
   // Calculate percentage for grading (works for any maxScore)
-  const percentage = maxScore > 0 ? (totalScore / maxScore) * 100 : 0;
+  const percentage =
+    displayMaxScore > 0
+      ? Math.min(100, (displayTotalScore / displayMaxScore) * 100)
+      : 0;
   const grade =
     percentage >= 79
       ? "Xuất sắc 🏆"
@@ -330,9 +387,9 @@ export function ScorePanel({
       <div className="flex items-center gap-4 bg-brand-gold-light rounded-xl p-3 mb-4">
         <div className="w-14 h-14 rounded-full bg-brand-charcoal flex flex-col items-center justify-center flex-shrink-0 shadow-lg">
           <span className="text-white font-display font-bold text-xl leading-none">
-            {totalScore}
+            {displayTotalScore}
           </span>
-          <span className="text-[9px] text-brand-gold-light/95">/{maxScore}</span>
+          <span className="text-[9px] text-brand-gold-light/95">/{displayMaxScore}</span>
         </div>
         <div>
           <p className="text-xs font-bold text-brand-charcoal mb-0.5">
@@ -353,42 +410,13 @@ export function ScorePanel({
       </div>
 
       {/* Breakdown */}
-      {breakdown &&
-        Object.keys(breakdown).filter(
-          (k) =>
-            !k.endsWith("_max") &&
-            !["details", "total", "total_max", "pte_score", "phase2", "word_alignment"].includes(k) &&
-            typeof (breakdown as any)[k] === "number",
-        ).length > 0 && (
+      {breakdown && displayScoreEntries.length > 0 && (
           <div className="space-y-2.5 mb-4">
-            {Object.entries(breakdown)
-              .filter(
-                ([k, v]) =>
-                  !k.endsWith("_max") &&
-                  !["details", "total", "total_max", "pte_score", "phase2", "word_alignment"].includes(k) &&
-                  typeof v === "number",
-              )
-              .map(([k, v]) => {
-                // Try to get max from breakdown._max fields, otherwise use default
-                const maxKey = `${k}_max`;
-                let componentMax = (breakdown as any)[maxKey];
-                if (componentMax === undefined) {
-                  // Fallback: old logic
-                  componentMax =
-                    maxScore === 1
-                      ? 1
-                      : maxScore === 9
-                        ? k === "content" ? 4 : k === "form" ? 1 : 2
-                        : maxScore === 15
-                          ? 5
-                          : maxScore === 13
-                            ? k === "content"
-                              ? 3
-                              : 5
-                            : 90;
-                }
+            {displayScoreEntries.map(({ key: k, value, max: componentMax }) => {
                 const componentPercentage =
-                  componentMax > 0 ? ((v as number) / componentMax) * 100 : 0;
+                  componentMax > 0
+                    ? Math.min(100, (value / componentMax) * 100)
+                    : 0;
                 return (
                   <div key={k}>
                     <div className="flex justify-between mb-1">
@@ -406,11 +434,11 @@ export function ScorePanel({
                                 : "#ef4444",
                         }}
                       >
-                        {v}/{componentMax}
+                        {value}/{componentMax}
                       </span>
                     </div>
                     <ProgressBar
-                      value={v as number}
+                      value={value}
                       max={componentMax}
                       color={
                         componentPercentage >= 79
@@ -547,6 +575,7 @@ interface AnalysisRow {
   timer: string;
   status: string;
   score?: number;
+  scoreMax?: number;
   feedback?: string;
   createdAt: string;
 }
@@ -565,8 +594,8 @@ export function AnalysisTable({
           📊
         </div>
         <div>
-          <p className="text-sm font-bold text-gray-900">Analysis</p>
-          <p className="text-xs text-gray-400">Description</p>
+          <p className="text-sm font-bold text-gray-900">Lịch sử luyện tập</p>
+          <p className="text-xs text-gray-400">Các lần nộp bài gần đây</p>
         </div>
       </div>
       <table className="w-full analysis-table">
@@ -609,7 +638,9 @@ export function AnalysisTable({
                 <td className="font-bold text-brand-gold">
                   {r.feedback
                     ? <span className="text-xs font-semibold">{r.feedback}</span>
-                    : (r.score != null ? r.score : "—")}
+                    : r.score != null
+                      ? <span>{r.score}{r.scoreMax != null ? <span className="text-[10px] font-normal text-gray-400">/{r.scoreMax}</span> : ''}</span>
+                      : "—"}
                 </td>
                 <td>
                   {onView && r.status === "SCORED" && (

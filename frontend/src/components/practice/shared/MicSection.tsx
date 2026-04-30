@@ -1,7 +1,9 @@
 import React from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { clsx } from "clsx";
-import { ScorePanel, Waveform } from "../../ui";
+import { Waveform } from "../../ui";
+import { AITutorPanel } from "./AITutorPanel";
+import { RecordingWaveform } from "./RecordingWaveform";
 import { useRecorder } from "../../../hooks/useRecorder";
 import { attemptsApi } from "../../../api";
 import { WordComparison } from "./WordComparison";
@@ -10,6 +12,7 @@ export interface MicSectionProps {
   questionId: string;
   prepSeconds?: number;
   maxSeconds?: number;
+  autoStart?: boolean;
   label?: string;
   originalText?: string;
   maxScore?: number;
@@ -21,6 +24,7 @@ export function MicSection({
   questionId,
   prepSeconds = 0,
   maxSeconds = 40,
+  autoStart = true,
   label,
   originalText,
   maxScore = 90,
@@ -40,6 +44,12 @@ export function MicSection({
       qc.invalidateQueries({ queryKey: ["attempts", questionId] });
     },
   });
+
+  const handleReRecord = () => {
+    setScoreResult(null);
+    setAttemptId(null);
+    reset();
+  };
 
   const pollForScore = async (id: string) => {
     let tries = 0;
@@ -63,7 +73,9 @@ export function MicSection({
     countdown,
     elapsed,
     audioUrl,
+    micError,
     startRecording,
+    startAutoRecording,
     stopRecording,
     reset,
   } = useRecorder({
@@ -71,6 +83,12 @@ export function MicSection({
     maxSeconds,
     onStop: (blob, duration) => submitMutation.mutate({ blob, duration }),
   });
+
+  React.useEffect(() => {
+    if (!autoStart) return;
+    startAutoRecording(state);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoStart, startAutoRecording]);
 
   const formatTime = (s: number) =>
     `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
@@ -105,45 +123,31 @@ export function MicSection({
             </span>
           </div>
         )}
-        {state === "idle" || state === "stopped" ? (
+        {(state === "idle" || state === "stopped") && (
           <p className="text-[11px] sm:text-xs text-gray-500 mt-1 text-center px-2 leading-snug max-sm:line-clamp-2">
-            {label || "Chạm nút mic bên dưới để ghi âm"}
+            {state === "stopped"
+              ? "Bấm 🎙️ để ghi lại từ đầu"
+              : (label || "Chạm nút mic bên dưới để ghi âm")}
           </p>
-        ) : null}
+        )}
       </div>
 
       <div className="flex justify-center items-end gap-4 sm:gap-6 max-md:mb-2">
-        {state !== "recording" && (
-          <div className="flex flex-col items-center gap-1.5">
-            <button
-              onClick={reset}
-              disabled={state === "countdown"}
-              className="w-11 h-11 rounded-full bg-gray-100 border-2 border-gray-200 flex items-center justify-center text-lg hover:bg-gray-200 transition-colors disabled:opacity-40"
-            >
-              🔄
-            </button>
-            <span className="text-[10px] font-semibold text-gray-400">
-              Reset
-            </span>
-          </div>
-        )}
-
         {state === "idle" || state === "countdown" ? (
           <div className="flex flex-col items-center gap-1.5">
             <button
               onClick={startRecording}
-              disabled={state === "countdown"}
               className={clsx(
-                "w-14 h-14 rounded-full flex items-center justify-center text-2xl text-white shadow-lg transition-all",
+                "w-14 h-14 rounded-full flex items-center justify-center text-2xl text-white shadow-lg transition-all active:scale-95",
                 state === "countdown"
-                  ? "bg-gray-200 cursor-wait"
-                  : "bg-brand-gold hover:bg-brand-gold-bright hover:scale-105 shadow-[0_4px_16px_rgba(13,148,136,0.35)]",
+                  ? "bg-brand-gold animate-pulse hover:bg-brand-gold-bright shadow-[0_4px_16px_rgba(228,168,8,0.5)]"
+                  : "bg-brand-gold hover:bg-brand-gold-bright hover:scale-105 shadow-[0_4px_16px_rgba(228,168,8,0.35)]",
               )}
             >
               🎙️
             </button>
             <span className="text-[10px] font-bold text-amber-900">
-              Click to record
+              {state === "countdown" ? `Bấm ghi ngay (${countdown}s)` : "Bấm để ghi âm"}
             </span>
           </div>
         ) : state === "recording" ? (
@@ -156,37 +160,42 @@ export function MicSection({
             </button>
             <span className="text-[10px] font-bold text-red-500">Stop</span>
           </div>
-        ) : null}
-
-        {state === "stopped" && !submitMutation.isPending && (
+        ) : state === "stopped" ? (
           <div className="flex flex-col items-center gap-1.5">
-            <div className="w-11 h-11 rounded-full bg-green-100 border-2 border-green-400 flex items-center justify-center text-lg">
-              ✅
-            </div>
-            <span className="text-[10px] font-bold text-green-600">
-              Submitted
-            </span>
+            <button
+              onClick={handleReRecord}
+              className="w-14 h-14 rounded-full bg-brand-gold hover:bg-brand-gold-bright flex items-center justify-center text-2xl text-white shadow-lg transition-all active:scale-95 hover:scale-105 shadow-[0_4px_16px_rgba(228,168,8,0.35)]"
+            >
+              🎙️
+            </button>
+            <span className="text-[10px] font-bold text-amber-900">Ghi lại</span>
           </div>
-        )}
+        ) : null}
       </div>
 
-      {submitMutation.isPending && (
-        <div className="mt-4 text-center text-sm text-gray-400 animate-pulse">
-          AI đang chấm điểm…
+      {micError && (
+        <div className="mt-3 bg-red-50 border border-red-200 rounded-xl px-4 py-3 flex items-start gap-2">
+          <span className="text-red-500 text-base flex-shrink-0">🎙️❌</span>
+          <p className="text-sm text-red-700 leading-snug">{micError}</p>
         </div>
       )}
+
+      {/* Recording waveform — hiển thị ngay khi ghi xong */}
+      {audioUrl && state === "stopped" && (
+        <div className="mt-3">
+          <RecordingWaveform audioUrl={audioUrl} durationSec={elapsed || 1} />
+        </div>
+      )}
+
+      {submitMutation.isPending && (
+        <div className="mt-3 flex items-center justify-center gap-2 py-3 bg-amber-50 rounded-xl border border-amber-100">
+          <span className="w-4 h-4 border-2 border-brand-gold border-t-transparent rounded-full animate-spin flex-shrink-0" />
+          <p className="text-sm text-amber-700 font-medium">AI đang chấm điểm…</p>
+        </div>
+      )}
+
       {scoreResult && (
         <div className="mt-4 space-y-3">
-          {scoreResult.transcription && (
-            <div className="bg-blue-50 border border-blue-100 rounded-xl px-4 py-3">
-              <p className="text-[10px] font-black uppercase tracking-widest text-blue-400 mb-1.5">
-                📝 Bản lời nhận dạng (AI Transcription)
-              </p>
-              <p className="text-sm text-blue-900 italic leading-relaxed">
-                "{scoreResult.transcription}"
-              </p>
-            </div>
-          )}
           {scoreResult.transcription &&
             scoreResult.status === "SCORED" &&
             wordComparisonStatus === "enabled" &&
@@ -211,11 +220,15 @@ export function MicSection({
               </div>
             )}
           {scoreResult.status === "SCORED" && (
-            <ScorePanel
+            <AITutorPanel
               totalScore={scoreResult.totalScore}
-              breakdown={scoreResult.scoreBreakdown}
-              feedback={scoreResult.feedback}
               maxScore={maxScore}
+              feedback={scoreResult.feedback}
+              tutorTip={scoreResult.tutorTip}
+              breakdown={scoreResult.scoreBreakdown}
+              transcription={scoreResult.transcription}
+              wordErrors={scoreResult.wordErrors || []}
+              mode="speaking"
             />
           )}
           {scoreResult.status === "SCORED" && suggestedAnswer && (
@@ -244,14 +257,6 @@ export function MicSection({
         </div>
       )}
 
-      {audioUrl && state === "stopped" && (
-        <div className="mt-3 bg-gray-50 rounded-lg px-4 py-3">
-          <p className="text-xs font-semibold text-gray-500 mb-2">
-            🔊 Nghe lại bài của bạn:
-          </p>
-          <audio controls src={audioUrl} className="w-full h-8" />
-        </div>
-      )}
     </div>
   );
 }

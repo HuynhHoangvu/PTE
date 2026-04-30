@@ -3,44 +3,32 @@ import { Question } from "../../../types";
 import { Button } from "../../ui";
 import { MicSection } from "../shared/MicSection";
 import { repeatSentenceReferenceText } from "../shared/WordComparison";
+import { getMaxScore } from "../../../constants/scoring";
 
 export function RepeatSentence({ question }: { question: Question }) {
   type Phase = "idle" | "speaking" | "ready";
   const [phase, setPhase] = React.useState<Phase>("idle");
-  const [countdown, setCountdown] = React.useState(0);
   const audioRef = React.useRef<HTMLAudioElement | null>(null);
 
-  const afterAudioEnds = React.useCallback(() => {
-    setCountdown(2);
-    let c = 2;
-    const t = setInterval(() => {
-      c--;
-      setCountdown(c);
-      if (c <= 0) {
-        clearInterval(t);
-        setPhase("ready");
-      }
-    }, 1000);
+  const goToReady = React.useCallback(() => {
+    window.speechSynthesis?.cancel();
+    audioRef.current?.pause();
+    setPhase("ready");
   }, []);
 
   const speak = React.useCallback(() => {
     if (question.audioUrl) {
       setPhase("speaking");
       const el = audioRef.current;
-      if (!el) {
-        setPhase("idle");
-        return;
-      }
+      if (!el) { setPhase("idle"); return; }
       el.currentTime = 0;
       const onEnded = () => {
         el.removeEventListener("ended", onEnded);
-        afterAudioEnds();
+        // Chờ 1s rồi tự chuyển sang ready (ngắn hơn trước)
+        setTimeout(() => setPhase("ready"), 1000);
       };
       el.addEventListener("ended", onEnded);
-      el.play().catch(() => {
-        el.removeEventListener("ended", onEnded);
-        setPhase("idle");
-      });
+      el.play().catch(() => { el.removeEventListener("ended", onEnded); setPhase("idle"); });
       return;
     }
 
@@ -60,16 +48,16 @@ export function RepeatSentence({ question }: { question: Question }) {
     if (enVoice) utterance.voice = enVoice;
 
     utterance.onstart = () => setPhase("speaking");
-    utterance.onend = () => { afterAudioEnds(); };
+    utterance.onend = () => setTimeout(() => setPhase("ready"), 1000);
 
     setPhase("speaking");
     window.speechSynthesis.speak(utterance);
-  }, [question, afterAudioEnds]);
+  }, [question]);
 
-  React.useEffect(
-    () => () => { window.speechSynthesis?.cancel(); },
-    [],
-  );
+  React.useEffect(() => () => { window.speechSynthesis?.cancel(); }, []);
+
+  // Reset khi đổi câu
+  React.useEffect(() => { setPhase("idle"); }, [question.id]);
 
   const refForMic = repeatSentenceReferenceText(question);
   const canPlay = Boolean(question.audioUrl || refForMic);
@@ -84,15 +72,11 @@ export function RepeatSentence({ question }: { question: Question }) {
 
   return (
     <div className="practice-body space-y-4 sm:space-y-5">
-      {question.audioUrl ? (
-        <audio
-          ref={audioRef}
-          src={question.audioUrl}
-          preload="auto"
-          className="hidden"
-        />
-      ) : null}
+      {question.audioUrl && (
+        <audio ref={audioRef} src={question.audioUrl} preload="auto" className="hidden" />
+      )}
 
+      {/* Idle: nút nghe */}
       {phase === "idle" && (
         <div className="flex flex-col items-center gap-3 sm:gap-4 py-4 sm:py-6">
           <p className="text-xs sm:text-sm text-gray-600 text-center px-2 leading-snug">
@@ -104,8 +88,9 @@ export function RepeatSentence({ question }: { question: Question }) {
         </div>
       )}
 
+      {/* Đang phát audio */}
       {phase === "speaking" && (
-        <div className="flex flex-col items-center gap-3 py-6">
+        <div className="flex flex-col items-center gap-3 py-4">
           <div className="flex gap-1 items-end h-8">
             {[3, 5, 7, 5, 3, 6, 4, 7, 5, 3].map((h, i) => (
               <div
@@ -116,36 +101,26 @@ export function RepeatSentence({ question }: { question: Question }) {
             ))}
           </div>
           <p className="text-sm font-semibold text-amber-900 animate-pulse">
-            AI đang đọc câu...
+            Đang phát câu...
           </p>
           <button
-            onClick={() => {
-              window.speechSynthesis.cancel();
-              audioRef.current?.pause();
-              setPhase("ready");
-            }}
-            className="text-xs text-gray-400 underline hover:text-gray-600"
+            onClick={goToReady}
+            className="text-xs text-brand-gold font-bold underline active:opacity-70"
           >
-            Bỏ qua
+            Bỏ qua · Ghi ngay →
           </button>
         </div>
       )}
 
-      {phase === "speaking" && countdown > 0 && (
-        <p className="text-center text-sm text-gray-500">
-          Bắt đầu thu âm trong{" "}
-          <span className="font-bold text-brand-gold">{countdown}s</span>
-        </p>
-      )}
-
+      {/* Sẵn sàng ghi — MicSection autoStart ngay (prepSeconds=0) */}
       {phase === "ready" && (
         <MicSection
           questionId={question.id}
           prepSeconds={0}
           maxSeconds={question.responseTime || 15}
-          label="Lặp lại câu vừa nghe"
+          label="Lặp lại câu vừa nghe · bấm ⏹ khi xong"
           originalText={refForMic || undefined}
-          maxScore={13}
+          maxScore={getMaxScore(question.type)}
           wordComparisonStatus={refForMic ? "enabled" : "required_but_missing"}
         />
       )}

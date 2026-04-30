@@ -10,20 +10,19 @@ export function AudioWithMic({
   question: Question;
   maxScore?: number;
 }) {
-  const isRTS = question.type === "SPEAKING_RESPOND_TO_SITUATION";
+  // readyToRecord = true khi không có audio HOẶC audio đã phát xong
+  const [audioEnded, setAudioEnded] = React.useState(!question.audioUrl);
+
+  // Reset khi đổi câu
+  React.useEffect(() => {
+    setAudioEnded(!question.audioUrl);
+  }, [question.id, question.audioUrl]);
+
   const isSGD = question.type === "SPEAKING_SUMMARISE_GROUP_DISCUSSION";
+
   return (
     <div className="practice-body">
-      {isRTS && question.content && (
-        <div className="bg-amber-50 border border-amber-200 rounded-xl px-3 py-3 sm:px-4 sm:py-4">
-          <p className="text-[10px] font-black uppercase tracking-widest text-amber-600 mb-2">
-            📋 Tình huống
-          </p>
-          <p className="practice-prose text-amber-900">
-            {question.content}
-          </p>
-        </div>
-      )}
+      {/* Transcript SGD */}
       {isSGD && !question.audioUrl && question.content && (
         <div className="bg-purple-50 border border-purple-200 rounded-xl px-3 py-3 sm:px-4 sm:py-4 max-h-[42vh] sm:max-h-none overflow-y-auto">
           <p className="text-[10px] font-black uppercase tracking-widest text-purple-600 mb-2 sm:mb-3">
@@ -41,24 +40,53 @@ export function AudioWithMic({
                 );
               }
               return line.trim() ? (
-                <p key={i} className="text-[14px] sm:text-sm text-purple-900 leading-snug sm:leading-relaxed">{line}</p>
+                <p key={i} className="text-[14px] sm:text-sm text-purple-900 leading-snug sm:leading-relaxed">
+                  {line}
+                </p>
               ) : null;
             })}
           </div>
         </div>
       )}
+
+      {/* Audio player */}
       {question.audioUrl && (
-        <AudioPlayer
-          src={question.audioUrl}
-          countdownSeconds={5}
-          showSpeedControl
-        />
+        <div className="space-y-1">
+          <AudioPlayer
+            src={question.audioUrl}
+            countdownSeconds={5}
+            onEnded={() => setAudioEnded(true)}
+            showSpeedControl
+          />
+          {!audioEnded && (
+            <p className="text-[11px] text-gray-400 text-center">
+              Nghe xong → mic tự động bắt đầu · hoặc{" "}
+              <button
+                className="text-brand-gold font-bold underline"
+                onClick={() => setAudioEnded(true)}
+              >
+                bỏ qua và ghi ngay
+              </button>
+            </p>
+          )}
+        </div>
       )}
+
+      {/*
+        MicSection LUÔN hiển thị — không ẩn dù đang phát audio.
+        autoStart=audioEnded: khi audio kết thúc mới auto-countdown.
+        Nhưng user vẫn có thể bấm mic thủ công bất kỳ lúc nào.
+      */}
       <MicSection
         questionId={question.id}
         prepSeconds={question.prepTime || 0}
         maxSeconds={question.responseTime || 40}
-        label="Sau khi nghe xong: chạm mic vàng, hoặc đợi hệ thống tự bắt đầu ghi."
+        autoStart={audioEnded}
+        label={
+          audioEnded
+            ? "Hệ thống tự đếm ngược rồi ghi âm · bấm mic để ghi ngay"
+            : "Bấm 🎙️ để ghi ngay · hoặc chờ audio kết thúc sẽ tự động bắt đầu"
+        }
         maxScore={maxScore}
         wordComparisonStatus="disabled"
         suggestedAnswer={
@@ -66,9 +94,7 @@ export function AudioWithMic({
           (typeof question.correctAnswer === "string"
             ? question.correctAnswer
             : Array.isArray(question.correctAnswer) &&
-                question.correctAnswer.every(
-                  (v: any) => typeof v === "string",
-                )
+                question.correctAnswer.every((v: any) => typeof v === "string")
               ? question.correctAnswer.join(" / ")
               : undefined)
         }
