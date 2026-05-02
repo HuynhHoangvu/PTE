@@ -57,6 +57,11 @@ async def root():
         "whisper_model": os.getenv("WHISPER_MODEL", "small")
     }
 
+@app.get("/health")
+async def health():
+    return {"status": "ok"}
+
+
 
 # ── Master Scorer ─────────────────────────────────────────────────────────────
 async def score_attempt(req: ScoreRequest) -> ScoreResult:
