@@ -81,11 +81,25 @@ export const questionsApi = {
 
 // ── Attempts ──────────────────────────────────────────────────────────────
 export const attemptsApi = {
-  submitSpeaking: (questionId: string, audioBlob: Blob, duration?: number) => {
+  submitSpeaking: async (questionId: string, audioBlob: Blob, duration?: number) => {
     const form = new FormData();
     form.append('audio', audioBlob, 'recording.webm');
     form.append('questionId', questionId);
     if (duration) form.append('duration', String(duration));
+    
+    // Capacitor fix: convert Blob to base64 and append as text
+    const base64 = await new Promise<string>((resolve) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const dataUrl = reader.result as string;
+        resolve(dataUrl.split(',')[1] || '');
+      };
+      reader.readAsDataURL(audioBlob);
+    });
+    if (base64) {
+      form.append('audioBase64', base64);
+    }
+
     return api.post('/attempts/speaking', form, {
       headers: { 'Content-Type': 'multipart/form-data' },
     }).then((r) => r.data);

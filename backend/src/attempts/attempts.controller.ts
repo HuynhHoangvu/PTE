@@ -22,12 +22,17 @@ export class AttemptsController {
   async submitSpeaking(
     @Request() req,
     @UploadedFile() file: Express.Multer.File,
-    @Body() body: { questionId: string; duration?: number },
+    @Body() body: { questionId: string; duration?: number; audioBase64?: string },
   ) {
+    let audioBuffer = file?.buffer;
+    if ((!audioBuffer || audioBuffer.length === 0) && body.audioBase64) {
+      audioBuffer = Buffer.from(body.audioBase64, 'base64');
+    }
+
     return this.attemptsService.submitSpeaking({
       userId: req.user.userId,
       questionId: body.questionId,
-      audioBuffer: file?.buffer,
+      audioBuffer,
       duration: body.duration ? Number(body.duration) : undefined,
     });
   }
