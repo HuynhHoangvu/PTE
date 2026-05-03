@@ -1,6 +1,7 @@
 import React from "react";
 import { Question } from "../../../types";
 import { MicSection } from "../shared/MicSection";
+import { PracticeContentFrame } from "../shared/PracticeContentFrame";
 import { getMaxScore } from "../../../constants/scoring";
 
 export function ReadAloud({
@@ -10,12 +11,11 @@ export function ReadAloud({
   question: Question;
   attempts: any[];
 }) {
+  void attempts;
   return (
-    <div>
-      <div className="px-3 pt-3 pb-2 sm:px-5 sm:py-5">
-        <p className="text-[15px] sm:text-base leading-snug sm:leading-relaxed text-gray-800 bg-gray-50 rounded-xl p-3 sm:p-4 border border-gray-200 select-none">
-          {question.content}
-        </p>
+    <PracticeContentFrame stepHint="Đọc đoạn → Ghi âm rõ ràng, tốc độ ổn định">
+      <div className="practice-passage-scroll">
+        <p className="practice-prose select-none">{question.content}</p>
       </div>
       <MicSection
         questionId={question.id}
@@ -28,6 +28,6 @@ export function ReadAloud({
           question.content ? "enabled" : "required_but_missing"
         }
       />
-    </div>
+    </PracticeContentFrame>
   );
 }

@@ -50,6 +50,13 @@ export class User {
   @Column({ nullable: true, type: 'timestamp' })
   lastActiveAt: Date;
 
+  /** Số lần đăng nhập thành công (email/Google). */
+  @Column({ default: 0 })
+  loginCount: number;
+
+  @Column({ nullable: true, type: 'timestamp' })
+  lastLoginAt: Date;
+
   @Column({ nullable: true, type: 'timestamp' })
   premiumUntil: Date;
 

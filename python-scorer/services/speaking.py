@@ -143,6 +143,7 @@ def _score_fluency_pte(wpm: float, hesitation_count: int = 0) -> int:
     elif 80 <= wpm < 110:  base_score = 3
     elif 60 <= wpm < 80:   base_score = 2
     elif 0 < wpm < 60:     base_score = 1
+    elif wpm > 170:        base_score = 4 # Speaking very fast is still fluent, just slightly unnatural pace
     final_score = max(0, base_score - (hesitation_count // 2))
     return int(final_score)
 

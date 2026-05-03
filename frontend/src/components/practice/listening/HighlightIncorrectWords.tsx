@@ -4,6 +4,7 @@ import { clsx } from "clsx";
 import { Question } from "../../../types";
 import { AudioPlayer, Button } from "../../ui";
 import { attemptsApi } from "../../../api";
+import { PracticeContentFrame } from "../shared/PracticeContentFrame";
 
 export function HighlightIncorrectWords({ question }: { question: Question }) {
   const words = (question.content || "").split(/(\s+)/);
@@ -45,12 +46,14 @@ export function HighlightIncorrectWords({ question }: { question: Question }) {
     : [];
 
   return (
-    <div className="practice-body">
-      <AudioPlayer
-        src={question.audioUrl}
-        countdownSeconds={5}
-        showSpeedControl
-      />
+    <PracticeContentFrame stepHint="Nghe audio → Chạm các từ sai trong bản ghi">
+      <div className="rounded-xl border border-gray-100 bg-gray-50/60 p-2 sm:p-3">
+        <AudioPlayer
+          src={question.audioUrl}
+          countdownSeconds={5}
+          showSpeedControl
+        />
+      </div>
       <div className="text-[14px] sm:text-sm leading-relaxed sm:leading-[2] text-gray-800 bg-gray-50 rounded-xl p-3 sm:p-4 border border-gray-200 select-none max-h-[50vh] sm:max-h-none overflow-y-auto">
         {words.map((word, idx) => {
           if (!word.trim()) return <span key={idx}>{word}</span>;
@@ -103,6 +106,6 @@ export function HighlightIncorrectWords({ question }: { question: Question }) {
           <p className="text-sm font-bold text-brand-orange">{result.feedback}</p>
         </div>
       )}
-    </div>
+    </PracticeContentFrame>
   );
 }

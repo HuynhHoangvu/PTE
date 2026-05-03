@@ -43,7 +43,7 @@ export class AdminController {
     const skip = (parseInt(page) - 1) * take;
 
     const listOpts = {
-      select: ['id', 'email', 'fullName', 'plan', 'role', 'streakDays', 'totalAttempts', 'averageScore', 'createdAt', 'lastActiveAt'] as (keyof User)[],
+      select: ['id', 'email', 'fullName', 'plan', 'role', 'streakDays', 'totalAttempts', 'averageScore', 'createdAt', 'lastActiveAt', 'loginCount', 'lastLoginAt'] as (keyof User)[],
       order: { createdAt: 'DESC' as const },
       take,
       skip,
@@ -64,7 +64,7 @@ export class AdminController {
     this.checkAdmin(req);
     const user = await this.userRepo.findOne({
       where: { id },
-      select: ['id', 'email', 'fullName', 'plan', 'role', 'streakDays', 'totalAttempts', 'averageScore', 'createdAt', 'lastActiveAt'],
+      select: ['id', 'email', 'fullName', 'plan', 'role', 'streakDays', 'totalAttempts', 'averageScore', 'createdAt', 'lastActiveAt', 'loginCount', 'lastLoginAt'],
     });
     if (!user) throw new NotFoundException('User not found');
     return user;
@@ -103,7 +103,19 @@ export class AdminController {
     const premiumUsers = await this.userRepo.count({ where: { plan: UserPlan.PREMIUM } });
     const totalAttempts = await this.attemptRepo.count();
     const completedTests = await this.mockAttemptRepo.count({ where: { status: MockTestAttemptStatus.COMPLETED } });
-    return { totalUsers, premiumUsers, totalAttempts, completedTests };
+    const loginAgg = await this.dataSource.query(`
+      SELECT COALESCE(SUM("loginCount"), 0)::text AS total_logins,
+             COUNT(*) FILTER (WHERE COALESCE("loginCount", 0) > 0)::text AS users_with_login
+      FROM users
+    `);
+    return {
+      totalUsers,
+      premiumUsers,
+      totalAttempts,
+      completedTests,
+      totalLoginEvents: Number(loginAgg[0]?.total_logins ?? 0),
+      usersWithAtLeastOneLogin: Number(loginAgg[0]?.users_with_login ?? 0),
+    };
   }
 
   // ── Analytics: Platform Overview ─────────────────────────────────────────
@@ -127,29 +139,31 @@ export class AdminController {
         this.mockAttemptRepo.count({ where: { status: MockTestAttemptStatus.COMPLETED } }),
       ]);
 
-    // Attempts by skill (last 30 days)
-    const bySkill: { skill: string; cnt: string }[] = await this.dataSource.query(`
+    const [bySkill, byType, byTypeAllTime, dailyTrend, loginAgg] = await Promise.all([
+      this.dataSource.query(`
       SELECT q.skill, COUNT(a.id)::text AS cnt
       FROM attempts a
       JOIN questions q ON a."questionId" = q.id
       WHERE a."createdAt" >= $1
       GROUP BY q.skill
       ORDER BY cnt DESC
-    `, [month]);
-
-    // Attempts by question type (last 30 days)
-    const byType: { type: string; cnt: string }[] = await this.dataSource.query(`
+    `, [month]),
+      this.dataSource.query(`
       SELECT q.type, COUNT(a.id)::text AS cnt
       FROM attempts a
       JOIN questions q ON a."questionId" = q.id
       WHERE a."createdAt" >= $1
       GROUP BY q.type
       ORDER BY cnt DESC
-      LIMIT 10
-    `, [month]);
-
-    // Daily activity trend (last 14 days)
-    const dailyTrend: { day: string; cnt: string; users: string }[] = await this.dataSource.query(`
+    `, [month]),
+      this.dataSource.query(`
+      SELECT q.type, COUNT(a.id)::text AS cnt
+      FROM attempts a
+      JOIN questions q ON a."questionId" = q.id
+      GROUP BY q.type
+      ORDER BY cnt DESC
+    `),
+      this.dataSource.query(`
       SELECT DATE("createdAt") AS day,
              COUNT(id)::text AS cnt,
              COUNT(DISTINCT "userId")::text AS users
@@ -157,7 +171,13 @@ export class AdminController {
       WHERE "createdAt" >= $1
       GROUP BY DATE("createdAt")
       ORDER BY day ASC
-    `, [new Date(today.getTime() - 14 * 86400000)]);
+    `, [new Date(today.getTime() - 14 * 86400000)]),
+      this.dataSource.query(`
+      SELECT COALESCE(SUM("loginCount"), 0)::text AS total_logins,
+             COUNT(*) FILTER (WHERE COALESCE("loginCount", 0) > 0)::text AS users_with_login
+      FROM users
+    `),
+    ]);
 
     return {
       totalUsers,
@@ -169,7 +189,12 @@ export class AdminController {
       totalMockTests,
       bySkill: bySkill.map(r => ({ skill: r.skill, count: Number(r.cnt) })),
       byType: byType.map(r => ({ type: r.type, count: Number(r.cnt) })),
+      byTypeAllTime: byTypeAllTime.map(r => ({ type: r.type, count: Number(r.cnt) })),
       dailyTrend: dailyTrend.map(r => ({ day: r.day, attempts: Number(r.cnt), users: Number(r.users) })),
+      loginStats: {
+        totalLoginEvents: Number(loginAgg[0]?.total_logins ?? 0),
+        usersWithAtLeastOneLogin: Number(loginAgg[0]?.users_with_login ?? 0),
+      },
     };
   }
 
@@ -223,6 +248,7 @@ export class AdminController {
       avgScore: 'avg_score',
       createdAt: 'u."createdAt"',
       email: 'u.email',
+      loginCount: 'u."loginCount"',
     };
     const sortCol = sortMap[sortBy] || 'last_active';
     const order = sortOrder === 'asc' ? 'ASC' : 'DESC';
@@ -242,6 +268,8 @@ export class AdminController {
         SELECT
           u.id, u.email, u."fullName", u.plan, u.role,
           u."createdAt" AS created_at,
+          u."loginCount" AS login_count,
+          u."lastLoginAt" AS last_login_at,
           stats.last_active,
           COALESCE(stats.total_attempts, 0)::int AS total_attempts,
           stats.avg_score,
@@ -305,6 +333,8 @@ export class AdminController {
         role: r.role,
         createdAt: r.created_at,
         lastActiveAt: r.last_active,
+        loginCount: r.login_count != null ? Number(r.login_count) : 0,
+        lastLoginAt: r.last_login_at,
         totalAttempts: r.total_attempts,
         avgScore: r.avg_score ? Number(r.avg_score) : null,
         mockCount: r.mock_cnt,
@@ -328,7 +358,7 @@ export class AdminController {
     this.checkAdmin(req);
     const user = await this.userRepo.findOne({
       where: { id },
-      select: ['id', 'email', 'fullName', 'plan', 'role', 'createdAt'],
+      select: ['id', 'email', 'fullName', 'plan', 'role', 'createdAt', 'loginCount', 'lastLoginAt'],
     });
     if (!user) throw new NotFoundException('User not found');
 

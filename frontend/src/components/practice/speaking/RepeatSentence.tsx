@@ -2,6 +2,7 @@ import React from "react";
 import { Question } from "../../../types";
 import { Button } from "../../ui";
 import { MicSection } from "../shared/MicSection";
+import { PracticeContentFrame } from "../shared/PracticeContentFrame";
 import { repeatSentenceReferenceText } from "../shared/WordComparison";
 import { getMaxScore } from "../../../constants/scoring";
 
@@ -64,21 +65,30 @@ export function RepeatSentence({ question }: { question: Question }) {
 
   if (!canPlay) {
     return (
-      <div className="practice-body-plain text-center text-sm text-gray-400 py-6">
-        Câu hỏi này thiếu dữ liệu (audioUrl hoặc correctAnswer/suggestedAnswer)
-      </div>
+      <PracticeContentFrame>
+        <div className="practice-body-plain text-center text-sm text-gray-400 py-6">
+          Câu hỏi này thiếu dữ liệu (audioUrl hoặc correctAnswer/suggestedAnswer)
+        </div>
+      </PracticeContentFrame>
     );
   }
 
+  const stepHint =
+    phase === "idle"
+      ? "Bước 1 · Nghe câu"
+      : phase === "speaking"
+        ? "Đang phát âm thanh"
+        : "Bước 2 · Lặp lại bằng mic";
+
   return (
-    <div className="practice-body space-y-4 sm:space-y-5">
+    <PracticeContentFrame stepHint={stepHint}>
       {question.audioUrl && (
         <audio ref={audioRef} src={question.audioUrl} preload="auto" className="hidden" />
       )}
 
       {/* Idle: nút nghe */}
       {phase === "idle" && (
-        <div className="flex flex-col items-center gap-3 sm:gap-4 py-4 sm:py-6">
+        <div className="flex flex-col items-center gap-3 sm:gap-4 py-2 sm:py-4">
           <p className="text-xs sm:text-sm text-gray-600 text-center px-2 leading-snug">
             Bấm nghe câu, sau đó lặp lại bằng mic
           </p>
@@ -95,17 +105,17 @@ export function RepeatSentence({ question }: { question: Question }) {
             {[3, 5, 7, 5, 3, 6, 4, 7, 5, 3].map((h, i) => (
               <div
                 key={i}
-                className="w-1.5 rounded-full bg-brand-gold animate-bounce"
+                className="w-1.5 rounded-full bg-brand-gold motion-safe:animate-bounce"
                 style={{ height: `${h * 4}px`, animationDelay: `${i * 0.1}s` }}
               />
             ))}
           </div>
-          <p className="text-sm font-semibold text-amber-900 animate-pulse">
+          <p className="text-sm font-semibold text-amber-900 motion-safe:animate-pulse">
             Đang phát câu...
           </p>
           <button
             onClick={goToReady}
-            className="text-xs text-brand-gold font-bold underline active:opacity-70"
+            className="text-xs text-brand-gold font-bold underline motion-safe:active:opacity-70"
           >
             Bỏ qua · Ghi ngay →
           </button>
@@ -124,6 +134,6 @@ export function RepeatSentence({ question }: { question: Question }) {
           wordComparisonStatus={refForMic ? "enabled" : "required_but_missing"}
         />
       )}
-    </div>
+    </PracticeContentFrame>
   );
 }

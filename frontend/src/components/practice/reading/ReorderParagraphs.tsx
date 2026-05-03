@@ -3,6 +3,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Question } from "../../../types";
 import { Button } from "../../ui";
 import { attemptsApi } from "../../../api";
+import { PracticeContentFrame } from "../shared/PracticeContentFrame";
 
 export function ReorderParagraphs({ question }: { question: Question }) {
   const options: { label: string; text: string }[] = question.options || [];
@@ -38,7 +39,7 @@ export function ReorderParagraphs({ question }: { question: Question }) {
   };
 
   return (
-    <div className="practice-body-plain space-y-4">
+    <PracticeContentFrame stepHint="Ghép các đoạn theo đúng thứ tự logic">
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 mb-2 sm:mb-4">
         <div>
           <p className="text-[11px] font-bold text-gray-500 mb-1.5 sm:mb-2 uppercase tracking-wide">
@@ -127,6 +128,6 @@ export function ReorderParagraphs({ question }: { question: Question }) {
           <p className="text-sm font-bold text-brand-orange">{result.feedback}</p>
         </div>
       )}
-    </div>
+    </PracticeContentFrame>
   );
 }

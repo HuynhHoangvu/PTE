@@ -1,24 +1,28 @@
 import { Question } from "../../../types";
 import { MicSection } from "../shared/MicSection";
+import { PracticeContentFrame, PracticeStepHint } from "../shared/PracticeContentFrame";
 import { getMaxScore } from "../../../constants/scoring";
 
 export function DescribeImage({ question }: { question: Question }) {
   if (!question.imageUrl) {
     return (
-      <div className="practice-body-plain py-8 sm:py-12 text-center">
-        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-5 sm:p-8 max-w-md mx-auto">
-          <p className="text-4xl sm:text-5xl mb-3 sm:mb-4">🖼️❓</p>
-          <h3 className="text-base sm:text-lg font-bold text-amber-900">Thiếu hình</h3>
-          <p className="text-sm text-amber-700 mt-2 leading-relaxed">
-            Câu Describe Image này chưa có ảnh. Vui lòng chọn câu khác.
-          </p>
+      <PracticeContentFrame>
+        <div className="practice-body-plain py-8 sm:py-12 text-center">
+          <div className="bg-amber-50 border border-amber-200 rounded-2xl p-5 sm:p-8 max-w-md mx-auto">
+            <p className="text-4xl sm:text-5xl mb-3 sm:mb-4">🖼️❓</p>
+            <h3 className="text-base sm:text-lg font-bold text-amber-900">Thiếu hình</h3>
+            <p className="text-sm text-amber-700 mt-2 leading-relaxed">
+              Câu Describe Image này chưa có ảnh. Vui lòng chọn câu khác.
+            </p>
+          </div>
         </div>
-      </div>
+      </PracticeContentFrame>
     );
   }
 
   return (
     <div>
+      <PracticeStepHint>Xem hình → Mô tả đủ ý bằng mic</PracticeStepHint>
       {/* Mobile: ảnh gọn (max-height) để MicSection còn chỗ; desktop: layout 2 cột */}
       <div className="flex flex-col lg:flex-row lg:min-h-0 gap-3 lg:gap-0">
         <div className="px-3 pt-2 pb-1 sm:px-6 sm:py-5 lg:border-r lg:border-gray-100 lg:flex-[1.15] lg:min-w-0 flex flex-col">

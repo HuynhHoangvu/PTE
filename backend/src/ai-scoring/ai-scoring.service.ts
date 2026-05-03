@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { QuestionType } from '../questions/question.entity';
 import { Question } from '../questions/question.entity';
+import { isDeterministicQuestionType } from '../questions/deterministic-types';
 
 @Injectable()
 export class AiScoringService {
@@ -133,22 +134,6 @@ export class AiScoringService {
     }
   }
 
-  // Types scored deterministically — no AI needed, skip python-scorer entirely
-  private static readonly DETERMINISTIC_TYPES = new Set([
-    QuestionType.READING_MCQ_MULTIPLE_ANSWER,
-    QuestionType.LISTENING_MCQ_MULTIPLE_ANSWER,
-    QuestionType.READING_MCQ_SINGLE_ANSWER,
-    QuestionType.LISTENING_MCQ_SINGLE_ANSWER,
-    QuestionType.LISTENING_HIGHLIGHT_CORRECT_SUMMARY,
-    QuestionType.LISTENING_SELECT_MISSING_WORD,
-    QuestionType.READING_RE_ORDER_PARAGRAPH,
-    QuestionType.LISTENING_HIGHLIGHT_INCORRECT_WORD,
-    QuestionType.READING_FIB_R_W,
-    QuestionType.READING_FIB_R,
-    QuestionType.LISTENING_FIB_L,
-    QuestionType.LISTENING_DICTATION,
-  ]);
-
   // ── Master scorer ─────────────────────────────────────────────────────────
   async scoreAttempt(params: {
     question: Question;
@@ -160,7 +145,7 @@ export class AiScoringService {
     duration?: number;
   }): Promise<{ totalScore: number; scoreBreakdown: any; feedback: string; transcription?: string }> {
     // Deterministic types: score directly without calling python-scorer
-    if (!AiScoringService.DETERMINISTIC_TYPES.has(params.question.type)) {
+    if (!isDeterministicQuestionType(params.question.type)) {
       const pythonResult = await this.tryPythonScorer({ ...params, duration: params.duration });
       if (pythonResult) return pythonResult;
     }

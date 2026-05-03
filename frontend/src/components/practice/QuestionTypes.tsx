@@ -1,4 +1,5 @@
 // Barrel re-exports — edit the individual files in each subfolder instead
+export { PracticeContentFrame, PracticeStepHint } from "./shared/PracticeContentFrame";
 export { ReadAloud } from "./speaking/ReadAloud";
 export { RepeatSentence } from "./speaking/RepeatSentence";
 export { AudioWithMic } from "./speaking/AudioWithMic";

@@ -4,6 +4,7 @@ import { clsx } from "clsx";
 import { Question } from "../../../types";
 import { Button } from "../../ui";
 import { AITutorPanel } from "../shared/AITutorPanel";
+import { PracticeContentFrame } from "../shared/PracticeContentFrame";
 import { attemptsApi } from "../../../api";
 
 const MIN_WORDS = 200;
@@ -69,7 +70,7 @@ export function WriteEssay({ question }: { question: Question }) {
     : "text-gray-500";
 
   return (
-    <div className="practice-body">
+    <PracticeContentFrame stepHint="Đọc đề → Viết essay 200–300 từ">
       {/* Prompt */}
       {question.content && (
         <div className="practice-passage-scroll max-h-[32vh]">
@@ -175,6 +176,6 @@ export function WriteEssay({ question }: { question: Question }) {
           mode="writing"
         />
       )}
-    </div>
+    </PracticeContentFrame>
   );
 }

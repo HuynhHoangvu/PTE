@@ -63,11 +63,11 @@ export default function MProfilePage() {
 
   const handleNotifToggle = async () => {
     if (notifEnabled) {
-      await cancelAllNotifications();
+      await cancelAllNotifications(); // also clears KEY_NOTIF_SETUP
       setNotifEnabled(false);
     } else {
       const ok = await setupSmartNotifications(notifHour);
-      setNotifEnabled(ok);
+      if (ok) setNotifEnabled(true);
     }
   };
 

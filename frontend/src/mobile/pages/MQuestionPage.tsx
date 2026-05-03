@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { questionsApi, attemptsApi } from "../../api";
 import { Question, QUESTION_TYPE_LABELS } from "../../types";
 import { MobileBackHeader } from "../layout/MobileShell";
-import { MBadge } from "../ui";
+import { MBadge, MErrorState, MSkeletonQuestion, MCompletionToast } from "../ui";
 import { getMaxScore, normalizeHistoryScore, DETERMINISTIC_TYPES } from "../../constants/scoring";
 import {
   ReadAloud,
@@ -53,7 +53,8 @@ function useBookmark(questionId: string) {
 }
 
 // ── Question body (reuses existing components) ─────────────────────────────────
-function QuestionBody({ question, attempts }: { question: Question; attempts: any[] }) {
+function QuestionBody({ question, attempts, onSubmit }: { question: Question; attempts: any[]; onSubmit?: () => void }) {
+  void onSubmit; // available for future per-type submit callbacks
   const { type } = question;
 
   if (type === "SPEAKING_READ_ALOUD")
@@ -84,8 +85,10 @@ function QuestionBody({ question, attempts }: { question: Question; attempts: an
   if (type === "READING_MCQ_MULTIPLE_ANSWER" || type === "LISTENING_MCQ_MULTIPLE_ANSWER") {
     if (type === "LISTENING_MCQ_MULTIPLE_ANSWER") {
       return (
-        <div className="px-4 py-4 space-y-4">
-          <AudioPlayer src={question.audioUrl} countdownSeconds={7} showSpeedControl />
+        <div className="space-y-3 sm:space-y-4 pt-1">
+          <div className="rounded-xl border border-gray-100 bg-gray-50/60 p-2 sm:p-3 mx-3 sm:mx-5">
+            <AudioPlayer src={question.audioUrl} countdownSeconds={7} showSpeedControl />
+          </div>
           <MCQuestion question={question} multiple />
         </div>
       );
@@ -107,8 +110,12 @@ function QuestionBody({ question, attempts }: { question: Question; attempts: an
         ? { ...question, content: undefined, title: undefined }
         : question;
     return (
-      <div className="px-4 py-4 space-y-4">
-        {withAudio && <AudioPlayer src={question.audioUrl} countdownSeconds={7} showSpeedControl />}
+      <div className="space-y-3 sm:space-y-4 pt-1">
+        {withAudio && (
+          <div className="rounded-xl border border-gray-100 bg-gray-50/60 p-2 sm:p-3 mx-3 sm:mx-5">
+            <AudioPlayer src={question.audioUrl} countdownSeconds={7} showSpeedControl />
+          </div>
+        )}
         <MCQuestion question={qForMCQ as typeof question} multiple={false} />
       </div>
     );
@@ -139,8 +146,14 @@ export default function MQuestionPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { bookmarked, toggle: toggleBookmark } = useBookmark(id || "");
+  const [showCompletion, setShowCompletion] = React.useState(false);
 
-  const { data: question, isLoading } = useQuery({
+  const handleSubmitFeedback = React.useCallback(() => {
+    setShowCompletion(true);
+    setTimeout(() => setShowCompletion(false), 2500);
+  }, []);
+
+  const { data: question, isLoading, isError } = useQuery({
     queryKey: ["question", id],
     queryFn: () => questionsApi.getOne(id!),
     enabled: !!id,
@@ -170,8 +183,39 @@ export default function MQuestionPage() {
 
   if (isLoading) {
     return (
-      <div className="mobile-page-full flex items-center justify-center">
-        <div className="w-8 h-8 border-4 border-brand-gold border-t-transparent rounded-full animate-spin" />
+      <div className="mobile-page-full">
+        <div className="practice-mobile-header !bg-white !border-b !border-gray-100 !shadow-none">
+          <div className="flex items-center h-[56px] px-4 gap-3">
+            <div className="w-9 h-9 rounded-xl bg-gray-100" />
+            <div className="h-4 w-1/3 m-skeleton rounded-lg" />
+          </div>
+        </div>
+        <MSkeletonQuestion />
+      </div>
+    );
+  }
+
+  if (isError) {
+    return (
+      <div className="mobile-page-full flex flex-col">
+        <div className="practice-mobile-header !bg-white !border-b !border-gray-100 !shadow-none">
+          <div className="flex items-center h-[56px] px-4 gap-3">
+            <button
+              onClick={() => navigate(-1)}
+              className="w-9 h-9 rounded-xl bg-gray-100 text-gray-700 flex items-center justify-center"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+                <path d="M15 18l-6-6 6-6" strokeLinecap="round" />
+              </svg>
+            </button>
+          </div>
+        </div>
+        <div className="practice-mobile-body flex items-center justify-center">
+          <MErrorState
+            title="Không tải được câu hỏi"
+            description="Kiểm tra kết nối mạng và thử lại."
+          />
+        </div>
       </div>
     );
   }
@@ -179,7 +223,7 @@ export default function MQuestionPage() {
   if (!question || !id) {
     return (
       <div className="mobile-page-full flex items-center justify-center">
-        <p className="text-gray-500">Không tìm thấy câu hỏi.</p>
+        <MErrorState title="Không tìm thấy câu hỏi" description="Câu hỏi này có thể đã bị xoá hoặc không tồn tại." />
       </div>
     );
   }
@@ -207,6 +251,8 @@ export default function MQuestionPage() {
 
   return (
     <div className="mobile-page-full bg-brand-cream">
+      <MCompletionToast visible={showCompletion} />
+
       {/* Practice header */}
       <MobileBackHeader
         title={QUESTION_TYPE_LABELS[question.type as keyof typeof QUESTION_TYPE_LABELS]}
@@ -230,23 +276,21 @@ export default function MQuestionPage() {
 
       {/* Content */}
       <div className="practice-mobile-body pb-[120px]">
-        {/* Question meta */}
-        <div className="px-4 pt-3 pb-2 flex items-center gap-2 flex-wrap">
-          <MBadge color="gray">{question.code}</MBadge>
-          <MBadge
-            color={
-              question.level === "Easy" ? "green" : question.level === "Hard" ? "red" : "gold"
-            }
-          >
-            {question.level}
-          </MBadge>
-          {question.isTrending && <MBadge color="orange">🔥 Trending</MBadge>}
-          {question.isRepeated && <MBadge color="blue">🔁 Hay ra</MBadge>}
-        </div>
-
-        {/* Body */}
-        <div className="bg-white rounded-t-3xl min-h-[60vh]">
-          <QuestionBody question={question} attempts={attempts} />
+        {/* Body: meta dính trên + nội dung bài */}
+        <div className="bg-white rounded-t-3xl min-h-[60vh] shadow-sm border border-gray-100/90 border-b-0 overflow-hidden">
+          <div className="sticky top-0 z-10 bg-white/95 backdrop-blur-md border-b border-gray-100 px-4 py-2.5 flex items-center gap-2 flex-wrap">
+            <MBadge color="gray">{question.code}</MBadge>
+            <MBadge
+              color={
+                question.level === "Easy" ? "green" : question.level === "Hard" ? "red" : "gold"
+              }
+            >
+              {question.level}
+            </MBadge>
+            {question.isTrending && <MBadge color="orange">🔥 Trending</MBadge>}
+            {question.isRepeated && <MBadge color="blue">🔁 Hay ra</MBadge>}
+          </div>
+          <QuestionBody question={question} attempts={attempts} onSubmit={handleSubmitFeedback} />
         </div>
 
         {/* Attempt history */}
@@ -310,7 +354,7 @@ export default function MQuestionPage() {
             className={clsx(
               "flex-1 h-10 rounded-xl flex items-center justify-center gap-1 font-bold text-sm transition-all",
               nextQ
-                ? "bg-brand-gold text-white shadow-gold-sm active:scale-[0.97]"
+                ? "bg-brand-gold text-white shadow-gold-sm motion-safe:active:scale-[0.97]"
                 : "bg-gray-100 text-gray-300 cursor-not-allowed"
             )}
           >

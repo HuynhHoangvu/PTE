@@ -4,6 +4,7 @@ import { clsx } from "clsx";
 import { Question } from "../../../types";
 import { attemptsApi } from "../../../api";
 import { parseReadingFibDrag } from "../../../utils/readingFibDrag";
+import { PracticeContentFrame } from "../shared/PracticeContentFrame";
 
 type Seg = { text: string; isBlank: false } | { blankId: string; isBlank: true };
 
@@ -128,7 +129,7 @@ export function FillInBlanksReading({ question }: { question: Question }) {
   const filledBlanks = Object.keys(answers).length;
 
   return (
-    <div className="practice-body">
+    <PracticeContentFrame stepHint="Bấm ô trống → Chọn từ trong ngân hàng">
       {/* Reading passage with inline blanks */}
       <div className="text-[15px] leading-[2.2] text-gray-800 max-h-[52vh] overflow-y-auto pr-1">
         {segments.map((seg, i) => {
@@ -242,6 +243,6 @@ export function FillInBlanksReading({ question }: { question: Question }) {
           onClose={() => setActiveBlank(null)}
         />
       )}
-    </div>
+    </PracticeContentFrame>
   );
 }

@@ -94,7 +94,7 @@ export function MicSection({
     `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
 
   return (
-    <div className="px-3 py-3 sm:px-5 sm:py-5 max-md:pb-4">
+    <div className="px-0 py-2 sm:py-3 max-md:pb-3">
       {state === "idle" && prepSeconds > 0 && (
         <p className="text-xs sm:text-sm text-gray-600 text-center mb-3 sm:mb-4 leading-snug px-1">
           Ghi âm sẽ bắt đầu sau{" "}
@@ -138,7 +138,7 @@ export function MicSection({
             <button
               onClick={startRecording}
               className={clsx(
-                "w-14 h-14 rounded-full flex items-center justify-center text-2xl text-white shadow-lg transition-all active:scale-95",
+                "w-14 h-14 rounded-full flex items-center justify-center text-2xl text-white shadow-lg transition-all motion-safe:active:scale-95",
                 state === "countdown"
                   ? "bg-brand-gold animate-pulse hover:bg-brand-gold-bright shadow-[0_4px_16px_rgba(228,168,8,0.5)]"
                   : "bg-brand-gold hover:bg-brand-gold-bright hover:scale-105 shadow-[0_4px_16px_rgba(228,168,8,0.35)]",
@@ -164,7 +164,7 @@ export function MicSection({
           <div className="flex flex-col items-center gap-1.5">
             <button
               onClick={handleReRecord}
-              className="w-14 h-14 rounded-full bg-brand-gold hover:bg-brand-gold-bright flex items-center justify-center text-2xl text-white shadow-lg transition-all active:scale-95 hover:scale-105 shadow-[0_4px_16px_rgba(228,168,8,0.35)]"
+              className="w-14 h-14 rounded-full bg-brand-gold hover:bg-brand-gold-bright flex items-center justify-center text-2xl text-white shadow-lg transition-all motion-safe:active:scale-95 hover:scale-105 shadow-[0_4px_16px_rgba(228,168,8,0.35)]"
             >
               🎙️
             </button>

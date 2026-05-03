@@ -1,10 +1,12 @@
-import { Injectable, NotFoundException, Logger } from '@nestjs/common';
+import { Injectable, NotFoundException, Logger, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 
 import { Attempt, AttemptStatus } from './attempt.entity';
 import { Question } from '../questions/question.entity';
+import { isDeterministicQuestionType } from '../questions/deterministic-types';
 import { User } from '../users/user.entity';
+import { UsersService } from '../users/users.service';
 import { AiScoringService } from '../ai-scoring/ai-scoring.service';
 import { StorageService } from '../common/storage/storage.service';
 
@@ -18,6 +20,7 @@ export class AttemptsService {
     @InjectRepository(User) private userRepo: Repository<User>,
     private aiScoringService: AiScoringService,
     private storageService: StorageService,
+    private usersService: UsersService,
   ) {}
 
   async submitSpeaking(params: {
@@ -33,6 +36,10 @@ export class AttemptsService {
     const question = await this.questionRepo.findOne({ where: { id: params.questionId } });
     if (!question) throw new NotFoundException('Question not found');
 
+    if (!params.audioBuffer?.length) {
+      throw new BadRequestException('Audio is required (file or audioBase64)');
+    }
+
     // Create attempt in SCORING state
     const attempt = this.attemptRepo.create({
       userId: params.userId,
@@ -42,11 +49,8 @@ export class AttemptsService {
     });
     await this.attemptRepo.save(attempt);
 
-    // Save audio file (local disk or GCS depending on NODE_ENV)
-    if (params.audioBuffer) {
-      const audioUrl = await this.storageService.saveAudio(attempt.id, params.audioBuffer);
-      await this.attemptRepo.update(attempt.id, { audioUrl });
-    }
+    const audioUrl = await this.storageService.saveAudio(attempt.id, params.audioBuffer);
+    await this.attemptRepo.update(attempt.id, { audioUrl });
 
     // Score asynchronously
     this.scoreAttemptAsync(attempt, question, params.audioBuffer).catch(async (err) => {
@@ -60,14 +64,6 @@ export class AttemptsService {
 
     return { id: attempt.id, status: attempt.status, message: 'Scoring in progress...' };
   }
-
-  private static readonly INSTANT_SCORE_TYPES = new Set([
-    'READING_MCQ_MULTIPLE_ANSWER', 'LISTENING_MCQ_MULTIPLE_ANSWER',
-    'READING_MCQ_SINGLE_ANSWER', 'LISTENING_MCQ_SINGLE_ANSWER',
-    'LISTENING_HIGHLIGHT_CORRECT_SUMMARY', 'LISTENING_SELECT_MISSING_WORD',
-    'READING_RE_ORDER_PARAGRAPH', 'LISTENING_HIGHLIGHT_INCORRECT_WORD',
-    'READING_FIB_R_W', 'READING_FIB_R', 'LISTENING_FIB_L', 'LISTENING_DICTATION',
-  ]);
 
   async submitText(params: {
     userId: string;
@@ -93,7 +89,7 @@ export class AttemptsService {
     await this.attemptRepo.save(attempt);
 
     // Deterministic types: score synchronously and return result immediately
-    if (AttemptsService.INSTANT_SCORE_TYPES.has(question.type)) {
+    if (isDeterministicQuestionType(question.type)) {
       try {
         const result = await this.aiScoringService.scoreAttempt({
           question,
@@ -107,6 +103,7 @@ export class AttemptsService {
           status: AttemptStatus.SCORED,
         });
         await this.updateUserStats(params.userId);
+        await this.usersService.recordPracticeActivity(params.userId);
         return {
           id: attempt.id,
           status: AttemptStatus.SCORED,
@@ -156,6 +153,7 @@ export class AttemptsService {
 
       // Update user stats
       await this.updateUserStats(attempt.userId);
+      await this.usersService.recordPracticeActivity(attempt.userId);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       this.logger.error(`scoreAttemptAsync failed for attempt=${attempt.id}: ${msg}`);
@@ -181,9 +179,9 @@ export class AttemptsService {
     });
   }
 
-  async getAttempt(id: string) {
+  async getAttempt(id: string, userId: string) {
     const attempt = await this.attemptRepo.findOne({
-      where: { id },
+      where: { id, userId },
       relations: ['question'],
       select: {
         id: true,
@@ -257,9 +255,9 @@ export class AttemptsService {
     });
   }
 
-  async pollScore(id: string) {
+  async pollScore(id: string, userId: string) {
     const attempt = await this.attemptRepo.findOne({
-      where: { id },
+      where: { id, userId },
       select: {
         id: true,
         status: true,
@@ -267,6 +265,9 @@ export class AttemptsService {
         scoreBreakdown: true,
         feedback: true,
         transcription: true,
+        tutorTip: true,
+        wordErrors: true,
+        vocabSuggestions: true,
       },
     });
     if (!attempt) throw new NotFoundException();
@@ -277,11 +278,14 @@ export class AttemptsService {
       scoreBreakdown: attempt.scoreBreakdown,
       feedback: attempt.feedback,
       transcription: attempt.transcription,
+      tutorTip: attempt.tutorTip,
+      wordErrors: attempt.wordErrors,
+      vocabSuggestions: attempt.vocabSuggestions,
     };
   }
 
-  async getAttemptAudio(id: string): Promise<Buffer | null> {
-    const attempt = await this.attemptRepo.findOne({ where: { id } });
+  async getAttemptAudio(id: string, userId: string): Promise<Buffer | null> {
+    const attempt = await this.attemptRepo.findOne({ where: { id, userId } });
     if (!attempt) throw new NotFoundException();
     return this.storageService.getAudioData(id);
   }

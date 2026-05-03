@@ -2,6 +2,7 @@ import React from "react";
 import { Question } from "../../../types";
 import { AudioPlayer } from "../../ui";
 import { MicSection } from "../shared/MicSection";
+import { PracticeContentFrame } from "../shared/PracticeContentFrame";
 
 export function AudioWithMic({
   question,
@@ -19,9 +20,15 @@ export function AudioWithMic({
   }, [question.id, question.audioUrl]);
 
   const isSGD = question.type === "SPEAKING_SUMMARISE_GROUP_DISCUSSION";
+  const stepHint =
+    isSGD && !question.audioUrl && question.content
+      ? "Đọc thoại nhóm → Ghi âm tóm tắt"
+      : question.audioUrl
+        ? "Nghe kỹ → Trả lời bằng mic"
+        : "Chuẩn bị → Ghi âm trả lời";
 
   return (
-    <div className="practice-body">
+    <PracticeContentFrame stepHint={stepHint}>
       {/* Transcript SGD */}
       {isSGD && !question.audioUrl && question.content && (
         <div className="bg-purple-50 border border-purple-200 rounded-xl px-3 py-3 sm:px-4 sm:py-4 max-h-[42vh] sm:max-h-none overflow-y-auto">
@@ -99,6 +106,6 @@ export function AudioWithMic({
               : undefined)
         }
       />
-    </div>
+    </PracticeContentFrame>
   );
 }

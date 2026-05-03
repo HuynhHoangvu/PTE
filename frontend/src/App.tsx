@@ -1,8 +1,10 @@
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useNavigate } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useAuthStore } from "./stores/authStore";
 import { App as CapApp } from "@capacitor/app";
+import { LocalNotifications } from "@capacitor/local-notifications";
 import React from "react";
+import { refreshNotificationsIfNeeded } from "./services/notifications";
 
 // Mobile pages
 import { MLoginPage, MRegisterPage } from "./mobile/pages/MAuthPage";
@@ -19,6 +21,7 @@ import MQuestionListPage from "./mobile/pages/MQuestionListPage";
 import { MobileShell } from "./mobile/layout/MobileShell";
 import { MOnboardingGate } from "./mobile/pages/MOnboardingGate";
 import { MPrivacyPolicyPage } from "./mobile/pages/MPrivacyPolicyPage";
+import { MTermsPage } from "./mobile/pages/MTermsPage";
 
 // Keep desktop pages for admin and mock test detail/result
 import { MockTestExamPage } from "./pages/MockTestPage";
@@ -75,17 +78,60 @@ function useAndroidBackButton() {
   }, []);
 }
 
-export default function App() {
+/** Refresh notification schedule when app comes to foreground */
+function useNotificationRefresh() {
+  React.useEffect(() => {
+    const listener = CapApp.addListener("appStateChange", ({ isActive }) => {
+      if (isActive) {
+        refreshNotificationsIfNeeded();
+      }
+    });
+    // Also refresh once on cold start
+    refreshNotificationsIfNeeded();
+    return () => { listener.then((h) => h.remove()); };
+  }, []);
+}
+
+/** Handle notification tap → navigate to the right screen */
+function useNotificationDeepLink() {
+  const navigate = useNavigate();
+  React.useEffect(() => {
+    let handle: ReturnType<typeof LocalNotifications.addListener> | null = null;
+    try {
+      handle = LocalNotifications.addListener("localNotificationActionPerformed", (action) => {
+        const screen = action.notification?.extra?.screen;
+        if (!screen) return;
+        if (screen === "dashboard") navigate("/dashboard");
+        else if (screen === "practice") navigate("/practice");
+        else if (screen === "analytics") navigate("/analytics");
+        else navigate("/dashboard");
+      });
+    } catch {
+      // LocalNotifications not available on web
+    }
+    return () => { handle?.then((h) => h.remove()); };
+  }, [navigate]);
+}
+
+function AppInner() {
   useAndroidBackButton();
+  useNotificationRefresh();
+  useNotificationDeepLink();
+  return null;
+}
+
+export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <MOnboardingGate>
       <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+        <AppInner />
         <Routes>
           {/* ── Public ── */}
           <Route path="/login" element={<PublicRoute><MLoginPage /></PublicRoute>} />
           <Route path="/register" element={<PublicRoute><MRegisterPage /></PublicRoute>} />
           <Route path="/privacy" element={<MPrivacyPolicyPage />} />
+          <Route path="/terms" element={<MTermsPage />} />
 
           {/* ── Tabbed (bottom nav shell) ── */}
           <Route element={<TabbedLayout />}>

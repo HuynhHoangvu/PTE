@@ -172,9 +172,9 @@ export function AudioPlayer({
     <div>
       {countdown > 0 && (
         <p className="text-sm text-gray-500 mb-2">
-          Beginning in{" "}
-          <span className="text-brand-gold font-bold">{fmt(countdown)}</span>{" "}
-          second(s)
+          Bắt đầu sau{" "}
+          <span className="text-brand-gold font-bold">{fmt(countdown)}</span>
+          {" "}giây
         </p>
       )}
       {src && (
@@ -569,6 +569,45 @@ export function ScorePanel({
   );
 }
 
+// ── Skeleton ──────────────────────────────────────────────────────────────
+export function Skeleton({ className }: { className?: string }) {
+  return (
+    <div
+      className={`m-skeleton rounded-xl ${className || ""}`}
+    />
+  );
+}
+
+export function SkeletonCard({ className }: { className?: string }) {
+  return (
+    <div className={`bg-white border border-gray-100 rounded-2xl p-4 shadow-card space-y-3 ${className || ""}`}>
+      <div className="flex items-center gap-3">
+        <Skeleton className="w-10 h-10 rounded-xl flex-shrink-0" />
+        <div className="flex-1 space-y-2">
+          <Skeleton className="h-3.5 w-2/3" />
+          <Skeleton className="h-2.5 w-1/2" />
+        </div>
+      </div>
+      <Skeleton className="h-1.5 w-full rounded-full" />
+    </div>
+  );
+}
+
+export function SkeletonTableRows({ rows = 5 }: { rows?: number }) {
+  return (
+    <>
+      {Array.from({ length: rows }).map((_, i) => (
+        <tr key={i} className="border-b border-gray-50">
+          <td className="py-3 px-4"><Skeleton className="h-3 w-20" /></td>
+          <td className="py-3 px-4"><Skeleton className="h-3 w-16" /></td>
+          <td className="py-3 px-4"><Skeleton className="h-3 w-12" /></td>
+          <td className="py-3 px-4"><Skeleton className="h-3 w-10" /></td>
+        </tr>
+      ))}
+    </>
+  );
+}
+
 // ── Analysis Table ────────────────────────────────────────────────────────
 interface AnalysisRow {
   id: string;
@@ -612,9 +651,9 @@ export function AnalysisTable({
             <tr>
               <td
                 colSpan={4}
-                className="text-center text-gray-400 py-6 text-sm"
+                className="text-center text-gray-400 py-8 text-sm"
               >
-                0–0 of 0
+                Chưa có lần nộp bài nào
               </td>
             </tr>
           ) : (
@@ -705,7 +744,7 @@ export function QuestionListDrawer({
       <div className="relative ml-auto w-full max-w-2xl bg-white h-full shadow-2xl flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-          <h2 className="font-display font-bold text-lg">Question list</h2>
+          <h2 className="font-display font-bold text-lg">Danh sách câu hỏi</h2>
           <button
             onClick={onClose}
             className="w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center text-gray-400"
@@ -833,7 +872,7 @@ export function QuestionListDrawer({
 
         {/* Pagination */}
         <div className="px-5 py-3 border-t border-gray-100 flex items-center justify-between text-xs text-gray-500">
-          <span>{total} questions</span>
+          <span>{total} câu</span>
           <div className="flex items-center gap-2">
             <button
               onClick={() => onPageChange(page - 1)}
@@ -842,7 +881,7 @@ export function QuestionListDrawer({
             >
               ‹
             </button>
-            <span className="font-bold">Page {page}</span>
+            <span className="font-bold">Trang {page}</span>
             <button
               onClick={() => onPageChange(page + 1)}
               className="w-7 h-7 rounded border border-gray-200 flex items-center justify-center hover:bg-gray-50"

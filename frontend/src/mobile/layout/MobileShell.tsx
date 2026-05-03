@@ -87,18 +87,23 @@ export function MobileShell({ children }: { children?: React.ReactNode }) {
                 to={tab.path}
                 className="flex-1 flex flex-col items-center justify-center gap-0.5 relative min-w-0"
               >
-                {tab.icon(isActive)}
+                <div className={clsx(isActive && "motion-safe:animate-tab-bounce")}>
+                  {tab.icon(isActive)}
+                </div>
                 <span
                   className={clsx(
-                    "text-[9px] font-bold leading-none transition-colors",
+                    "text-[9px] font-bold leading-none transition-colors duration-200",
                     isActive ? "text-brand-gold" : "text-gray-400"
                   )}
                 >
                   {tab.label}
                 </span>
-                {isActive && (
-                  <span className="absolute top-0 left-1/2 -translate-x-1/2 w-6 h-0.5 bg-brand-gold rounded-full" />
-                )}
+                <span
+                  className={clsx(
+                    "absolute top-0 left-1/2 -translate-x-1/2 h-0.5 bg-brand-gold rounded-full transition-all duration-300",
+                    isActive ? "w-6 opacity-100" : "w-0 opacity-0"
+                  )}
+                />
               </NavLink>
             );
           })}
@@ -170,7 +175,7 @@ export function MobileBackHeader({
         <button
           onClick={onBack}
           className={clsx(
-            "w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 active:scale-95 transition-transform",
+            "w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 motion-safe:active:scale-95 transition-transform",
             dark ? "bg-white/15 text-white" : "bg-gray-100 text-gray-700"
           )}
         >

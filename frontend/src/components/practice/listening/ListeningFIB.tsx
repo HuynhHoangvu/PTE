@@ -4,6 +4,7 @@ import { Question } from "../../../types";
 import { AudioPlayer, Button } from "../../ui";
 import { attemptsApi } from "../../../api";
 import { parseListeningFibSegments } from "../../../utils/listeningFibSegments";
+import { PracticeContentFrame } from "../shared/PracticeContentFrame";
 
 export function ListeningFIB({ question }: { question: Question }) {
   const segments = parseListeningFibSegments(question);
@@ -31,12 +32,14 @@ export function ListeningFIB({ question }: { question: Question }) {
 
   let blankSeq = 0;
   return (
-    <div className="practice-body">
-      <AudioPlayer
-        src={question.audioUrl}
-        countdownSeconds={7}
-        showSpeedControl
-      />
+    <PracticeContentFrame stepHint="Nghe audio → Gõ từ vào chỗ trống">
+      <div className="rounded-xl border border-gray-100 bg-gray-50/60 p-2 sm:p-3">
+        <AudioPlayer
+          src={question.audioUrl}
+          countdownSeconds={7}
+          showSpeedControl
+        />
+      </div>
       <div className="text-[15px] sm:text-base leading-[2.2] sm:leading-[2.5] text-gray-800 max-h-[45vh] sm:max-h-none overflow-y-auto pr-1">
         {segments.map((seg, i) => {
           if (!seg.isBlank) return <span key={i}>{seg.text}</span>;
@@ -94,6 +97,6 @@ export function ListeningFIB({ question }: { question: Question }) {
           <p className="text-sm font-bold text-brand-orange">{result.feedback}</p>
         </div>
       )}
-    </div>
+    </PracticeContentFrame>
   );
 }

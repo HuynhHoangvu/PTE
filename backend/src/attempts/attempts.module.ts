@@ -7,12 +7,14 @@ import { Attempt } from './attempt.entity';
 import { Question } from '../questions/question.entity';
 import { User } from '../users/user.entity';
 import { AiScoringModule } from '../ai-scoring/ai-scoring.module';
+import { UsersModule } from '../users/users.module';
 import { memoryStorage } from 'multer';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Attempt, Question, User]),
     AiScoringModule,
+    UsersModule,
     MulterModule.register({
       storage: memoryStorage(),
       limits: { fileSize: 50 * 1024 * 1024 }, // 50MB

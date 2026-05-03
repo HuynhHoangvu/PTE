@@ -94,6 +94,23 @@ export function MLoginPage() {
               Đăng ký
             </Link>
           </p>
+
+          <div className="rounded-2xl bg-gray-50/80 px-4 py-3 text-center text-[11px] leading-relaxed text-gray-500">
+            <p>
+              Đọc{" "}
+              <Link to="/privacy" className="font-semibold text-brand-gold">
+                Chính sách quyền riêng tư
+              </Link>{" "}
+              và{" "}
+              <Link to="/terms" className="font-semibold text-brand-gold">
+                Điều khoản sử dụng
+              </Link>
+              .
+            </p>
+            <p>
+              Khi đăng nhập, bạn xác nhận đã đọc và đồng ý với các nội dung trên.
+            </p>
+          </div>
         </div>
 
         <p className="text-center text-xs text-gray-400 mt-4">

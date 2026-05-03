@@ -4,6 +4,7 @@ import { clsx } from "clsx";
 import { Question } from "../../../types";
 import { AudioPlayer, Button, ScorePanel } from "../../ui";
 import { attemptsApi } from "../../../api";
+import { PracticeContentFrame } from "../shared/PracticeContentFrame";
 
 export function AudioTextAnswer({
   question,
@@ -51,13 +52,20 @@ export function AudioTextAnswer({
     },
   });
 
+  const stepHint =
+    maxWords != null
+      ? `Nghe audio → Viết ${minWords || 0}–${maxWords} từ`
+      : "Nghe audio → Chép lại nội dung nghe được";
+
   return (
-    <div className="practice-body">
-      <AudioPlayer
-        src={question.audioUrl}
-        countdownSeconds={7}
-        showSpeedControl
-      />
+    <PracticeContentFrame stepHint={stepHint}>
+      <div className="rounded-xl border border-gray-100 bg-gray-50/60 p-2 sm:p-3">
+        <AudioPlayer
+          src={question.audioUrl}
+          countdownSeconds={7}
+          showSpeedControl
+        />
+      </div>
       <textarea
         value={answer}
         onChange={(e) => setAnswer(e.target.value)}
@@ -66,8 +74,8 @@ export function AudioTextAnswer({
         className="w-full border border-gray-200 rounded-xl p-3 sm:p-4 text-[15px] sm:text-sm text-gray-800 resize-none min-h-[8rem] sm:min-h-0 focus:outline-none focus:border-brand-yellow transition-colors placeholder-gray-300 disabled:bg-gray-50"
         placeholder={
           maxWords
-            ? `Write your answer here (${minWords || 0}–${maxWords} words)...`
-            : "Type what you hear..."
+            ? `Viết câu trả lời (${minWords || 0}–${maxWords} từ)...`
+            : "Nghe và gõ lại nội dung..."
         }
       />
       <div className="flex flex-col gap-2 sm:flex-row sm:justify-between sm:items-center">
@@ -142,6 +150,6 @@ export function AudioTextAnswer({
           maxScore={maxScore}
         />
       )}
-    </div>
+    </PracticeContentFrame>
   );
 }

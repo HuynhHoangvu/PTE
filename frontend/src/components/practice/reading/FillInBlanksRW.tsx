@@ -3,6 +3,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Question } from "../../../types";
 import { Button, ScorePanel } from "../../ui";
 import { attemptsApi } from "../../../api";
+import { PracticeContentFrame } from "../shared/PracticeContentFrame";
 
 export function FillInBlanksRW({ question }: { question: Question }) {
   type RawSeg = { text: string; isBlank: boolean; options?: string[] };
@@ -78,7 +79,7 @@ export function FillInBlanksRW({ question }: { question: Question }) {
   });
 
   return (
-    <div className="practice-body">
+    <PracticeContentFrame stepHint="Chọn từ phù hợp cho từng chỗ trống">
       <div className="text-[15px] sm:text-base leading-[2.4] sm:leading-[2.8] text-gray-800 bg-gray-50 border border-gray-200 rounded-xl p-3 sm:p-5 shadow-inner max-h-[55vh] sm:max-h-none overflow-y-auto">
         {segments.map((seg, i) => {
           if (!seg.isBlank) return <span key={i}>{seg.text}</span>;
@@ -162,6 +163,6 @@ export function FillInBlanksRW({ question }: { question: Question }) {
           maxScore={fibTotal}
         />
       )}
-    </div>
+    </PracticeContentFrame>
   );
 }

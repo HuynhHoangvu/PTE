@@ -49,14 +49,17 @@ export default {
         'card':    '0 1px 4px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.04)',
       },
       animation: {
-        'wave':         'wave 1.2s ease-in-out infinite',
-        'pulse-ring':   'pulseRing 1.2s ease-out infinite',
-        'blink':        'blink 1s ease-in-out infinite',
-        'shimmer':      'shimmer 2s linear infinite',
-        'float':        'float 3s ease-in-out infinite',
-        'fade-in':      'fadeIn 0.45s ease-out both',
-        'fade-in-up':   'fadeInUp 0.55s cubic-bezier(0.22, 1, 0.36, 1) both',
-        'fade-in-down': 'fadeInDown 0.45s ease-out both',
+        'wave':              'wave 1.2s ease-in-out infinite',
+        'pulse-ring':        'pulseRing 1.2s ease-out infinite',
+        'blink':             'blink 1s ease-in-out infinite',
+        'shimmer':           'shimmer 2s linear infinite',
+        'float':             'float 3s ease-in-out infinite',
+        'fade-in':           'fadeIn 0.45s ease-out both',
+        'fade-in-up':        'fadeInUp 0.55s cubic-bezier(0.22, 1, 0.36, 1) both',
+        'fade-in-down':      'fadeInDown 0.45s ease-out both',
+        'completion-burst':  'completionBurst 0.45s cubic-bezier(0.22, 1, 0.36, 1) both',
+        'score-in':          'scoreIn 0.6s cubic-bezier(0.22, 1, 0.36, 1) both',
+        'tab-bounce':        'tabBounce 0.3s cubic-bezier(0.22, 1, 0.36, 1) both',
       },
       keyframes: {
         wave:      { '0%,100%': { height: '8px' }, '50%': { height: '24px' } },
@@ -73,12 +76,26 @@ export default {
           '0%':   { opacity: '0', transform: 'translateY(-10px)' },
           '100%': { opacity: '1', transform: 'translateY(0)' },
         },
+        completionBurst: {
+          '0%':   { transform: 'scale(0.6)', opacity: '0' },
+          '60%':  { transform: 'scale(1.12)', opacity: '1' },
+          '100%': { transform: 'scale(1)', opacity: '1' },
+        },
+        scoreIn: {
+          '0%':   { opacity: '0', transform: 'translateY(8px) scale(0.9)' },
+          '100%': { opacity: '1', transform: 'translateY(0) scale(1)' },
+        },
+        tabBounce: {
+          '0%':   { transform: 'translateY(0)' },
+          '40%':  { transform: 'translateY(-4px)' },
+          '100%': { transform: 'translateY(0)' },
+        },
       }
     }
   },
   plugins: [],
   safelist: [
     'pb-safe', 'pt-safe',
-    { pattern: /animate-(fade-in|fade-in-up|fade-in-down|float|shimmer|wave|pulse-ring)/ },
+    { pattern: /animate-(fade-in|fade-in-up|fade-in-down|float|shimmer|wave|pulse-ring|completion-burst|score-in|tab-bounce)/ },
   ],
 }

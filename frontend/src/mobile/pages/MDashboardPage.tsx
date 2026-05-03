@@ -6,7 +6,7 @@ import { logoUrl } from "../../assets";
 import { useAuthStore } from "../../stores/authStore";
 import { QuestionSkill, SKILL_TYPES } from "../../types";
 import { MobileHeader } from "../layout/MobileShell";
-import { MBadge, MSkeleton } from "../ui";
+import { MBadge, MSkeleton, MSkeletonCard, MErrorState } from "../ui";
 import { useUserGoals } from "./MOnboardingGate";
 import { clsx } from "clsx";
 
@@ -90,7 +90,7 @@ export default function MDashboardPage() {
   const targetNum = parseInt(targetScore) || 79;
   const daysLeft = daysUntil(examDate);
 
-  const { data: stats, isLoading: statsLoading } = useQuery({
+  const { data: stats, isLoading: statsLoading, isError: statsError, refetch: refetchStats } = useQuery({
     queryKey: ["stats"],
     queryFn: usersApi.getStats,
   });
@@ -271,10 +271,17 @@ export default function MDashboardPage() {
 
         {/* ── Recent Mock Tests ── */}
         {statsLoading && (
-          <div className="space-y-2">
-            <MSkeleton className="h-20 w-full rounded-2xl" />
-            <MSkeleton className="h-20 w-full rounded-2xl" />
+          <div className="space-y-2.5">
+            <MSkeletonCard />
+            <MSkeletonCard />
           </div>
+        )}
+        {statsError && (
+          <MErrorState
+            title="Không tải được dữ liệu"
+            description="Kiểm tra kết nối và thử lại."
+            onRetry={() => refetchStats()}
+          />
         )}
         {!statsLoading && (mockTests || []).length > 0 && (
           <div>

@@ -6,6 +6,7 @@ import * as bcrypt from 'bcryptjs';
 import { IsEmail, IsString, MinLength, IsNotEmpty } from 'class-validator';
 import { OAuth2Client } from 'google-auth-library';
 import { User } from '../users/user.entity';
+import { UsersService } from '../users/users.service';
 
 export class RegisterDto {
   @IsEmail()
@@ -38,6 +39,7 @@ export class AuthService {
   constructor(
     @InjectRepository(User) private userRepo: Repository<User>,
     private jwtService: JwtService,
+    private usersService: UsersService,
   ) {}
 
   async register(dto: RegisterDto) {
@@ -67,7 +69,7 @@ export class AuthService {
     const valid = await bcrypt.compare(dto.password, user.password);
     if (!valid) throw new UnauthorizedException('Invalid credentials');
 
-    await this.bumpUserStreak(user);
+    await this.usersService.recordSuccessfulLogin(user.id);
 
     const token = this.jwtService.sign({ sub: user.id, email: user.email });
     const { password, ...userWithoutPassword } = user;
@@ -79,20 +81,6 @@ export class AuthService {
     if (!user) throw new UnauthorizedException();
     const { password, ...rest } = user;
     return rest;
-  }
-
-  private async bumpUserStreak(user: User) {
-    const now = new Date();
-    const last = user.lastActiveAt;
-    if (last) {
-      const diffDays = Math.floor((now.getTime() - last.getTime()) / 86400000);
-      if (diffDays === 1) user.streakDays += 1;
-      else if (diffDays > 1) user.streakDays = 1;
-    } else {
-      user.streakDays = 1;
-    }
-    user.lastActiveAt = now;
-    await this.userRepo.save(user);
   }
 
   /** Đăng nhập / đăng ký nhanh bằng Google ID token (GIS credential JWT) */
@@ -142,7 +130,7 @@ export class AuthService {
     }
 
     await this.userRepo.save(user);
-    await this.bumpUserStreak(user);
+    await this.usersService.recordSuccessfulLogin(user.id);
 
     const fresh = await this.userRepo.findOne({ where: { id: user.id } });
     if (!fresh) throw new UnauthorizedException();

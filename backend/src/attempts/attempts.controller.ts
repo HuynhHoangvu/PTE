@@ -56,8 +56,8 @@ export class AttemptsController {
 
   // Poll for score result
   @Get(':id/score')
-  pollScore(@Param('id') id: string) {
-    return this.attemptsService.pollScore(id);
+  pollScore(@Param('id') id: string, @Request() req) {
+    return this.attemptsService.pollScore(id, req.user.userId);
   }
 
   // Get attempts for a specific question
@@ -67,14 +67,14 @@ export class AttemptsController {
   }
 
   @Get(':id')
-  getAttempt(@Param('id') id: string) {
-    return this.attemptsService.getAttempt(id);
+  getAttempt(@Param('id') id: string, @Request() req) {
+    return this.attemptsService.getAttempt(id, req.user.userId);
   }
 
   // Get audio data from database
   @Get(':id/audio')
-  async getAudio(@Param('id') id: string, @Response() res) {
-    const audioData = await this.attemptsService.getAttemptAudio(id);
+  async getAudio(@Param('id') id: string, @Request() req, @Response() res) {
+    const audioData = await this.attemptsService.getAttemptAudio(id, req.user.userId);
     if (!audioData) {
       throw new NotFoundException('Audio not found');
     }

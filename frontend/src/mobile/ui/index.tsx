@@ -19,7 +19,7 @@ export function MButton({
   ...props
 }: MButtonProps) {
   const base =
-    "inline-flex items-center justify-center gap-2 font-bold rounded-2xl transition-all duration-200 active:scale-[0.97] disabled:opacity-50 disabled:cursor-not-allowed select-none";
+    "inline-flex items-center justify-center gap-2 font-bold rounded-2xl transition-all duration-200 motion-safe:active:scale-[0.97] disabled:opacity-50 disabled:cursor-not-allowed select-none";
   const variants = {
     primary:
       "bg-brand-gold text-white shadow-gold-sm hover:bg-brand-gold-bright",
@@ -67,7 +67,7 @@ export function MCard({ children, className, variant = "default", onPress }: MCa
       <button
         onClick={onPress}
         className={clsx(
-          "w-full text-left transition-all duration-200 active:scale-[0.98]",
+          "w-full text-left transition-all duration-200 motion-safe:active:scale-[0.98]",
           variants[variant],
           className
         )}
@@ -539,6 +539,114 @@ export function MEmptyState({
       <h3 className="font-display font-bold text-lg text-gray-900 mb-2">{title}</h3>
       {description && <p className="text-sm text-gray-500 leading-relaxed mb-5">{description}</p>}
       {action}
+    </div>
+  );
+}
+
+// ── MErrorState ───────────────────────────────────────────────────────────────
+export function MErrorState({
+  title = "Không tải được dữ liệu",
+  description,
+  onRetry,
+}: {
+  title?: string;
+  description?: string;
+  onRetry?: () => void;
+}) {
+  return (
+    <div className="flex flex-col items-center justify-center py-14 px-6 text-center">
+      <div className="w-14 h-14 rounded-full bg-red-50 flex items-center justify-center mb-4">
+        <svg className="w-7 h-7 text-red-400" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+          <circle cx="12" cy="12" r="9" />
+          <path d="M12 8v4m0 4h.01" strokeLinecap="round" />
+        </svg>
+      </div>
+      <h3 className="font-display font-bold text-base text-gray-800 mb-1">{title}</h3>
+      {description && (
+        <p className="text-sm text-gray-500 leading-relaxed mb-5">{description}</p>
+      )}
+      {onRetry && (
+        <MButton size="sm" variant="secondary" onClick={onRetry}>
+          Thử lại
+        </MButton>
+      )}
+    </div>
+  );
+}
+
+// ── MSkeletonCard — card-shaped skeleton ──────────────────────────────────────
+export function MSkeletonCard({ className }: { className?: string }) {
+  return (
+    <div className={clsx("bg-white rounded-2xl border border-gray-100 p-4 shadow-card space-y-3", className)}>
+      <div className="flex items-center gap-3">
+        <MSkeleton className="w-11 h-11 rounded-xl flex-shrink-0" />
+        <div className="flex-1 space-y-2">
+          <MSkeleton className="h-3.5 w-2/3" />
+          <MSkeleton className="h-2.5 w-1/2" />
+        </div>
+      </div>
+      <MSkeleton className="h-1.5 w-full rounded-full" />
+    </div>
+  );
+}
+
+// ── MSkeletonListRow — list row skeleton ──────────────────────────────────────
+export function MSkeletonListRow({ className }: { className?: string }) {
+  return (
+    <div className={clsx("bg-white rounded-2xl border border-gray-100 px-4 py-3.5 flex items-center gap-3 shadow-card", className)}>
+      <MSkeleton className="w-10 h-10 rounded-xl flex-shrink-0" />
+      <div className="flex-1 space-y-2">
+        <MSkeleton className="h-3 w-3/4" />
+        <MSkeleton className="h-2.5 w-1/2" />
+      </div>
+      <MSkeleton className="w-16 h-5 rounded-full flex-shrink-0" />
+    </div>
+  );
+}
+
+// ── MSkeletonQuestion — question page skeleton ────────────────────────────────
+export function MSkeletonQuestion() {
+  return (
+    <div className="practice-mobile-body px-4 space-y-4">
+      <div className="space-y-2">
+        <MSkeleton className="h-4 w-1/4" />
+        <MSkeleton className="h-3.5 w-1/3" />
+      </div>
+      <MSkeleton className="h-28 w-full rounded-2xl" />
+      <div className="space-y-2.5 pt-2">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <MSkeleton key={i} className="h-12 w-full rounded-xl" />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── MCompletionToast — brief celebration on submit ────────────────────────────
+export function MCompletionToast({
+  visible,
+  score,
+  maxScore,
+}: {
+  visible: boolean;
+  score?: number;
+  maxScore?: number;
+}) {
+  if (!visible) return null;
+  const hasScore = score !== undefined && maxScore !== undefined;
+  return (
+    <div className="fixed top-20 left-1/2 -translate-x-1/2 z-[80] pointer-events-none">
+      <div className="completion-burst flex items-center gap-2 bg-brand-charcoal text-white px-4 py-2.5 rounded-2xl shadow-lg">
+        <span className="text-lg">✅</span>
+        <div>
+          <p className="text-xs font-black text-brand-gold-bright uppercase tracking-wide leading-none">Đã nộp bài</p>
+          {hasScore && (
+            <p className="text-sm font-display font-bold leading-tight mt-0.5">
+              {score}/{maxScore}
+            </p>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

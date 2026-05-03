@@ -3,6 +3,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { clsx } from "clsx";
 import { Question } from "../../../types";
 import { AITutorPanel } from "../shared/AITutorPanel";
+import { PracticeContentFrame } from "../shared/PracticeContentFrame";
 import { attemptsApi } from "../../../api";
 
 const MAX_WORDS = 75;
@@ -59,7 +60,7 @@ export function SummarizeWrittenText({ question }: { question: Question }) {
   const wordColor = wordWarn ? "text-red-500" : wordOk ? "text-green-600" : "text-gray-500";
 
   return (
-    <div className="practice-body">
+    <PracticeContentFrame stepHint="Đọc đoạn → Viết một câu tóm tắt (5–75 từ)">
       {/* Passage */}
       <div className="practice-passage-scroll">
         <p className="practice-prose">{question.content}</p>
@@ -148,6 +149,6 @@ export function SummarizeWrittenText({ question }: { question: Question }) {
           mode="writing"
         />
       )}
-    </div>
+    </PracticeContentFrame>
   );
 }

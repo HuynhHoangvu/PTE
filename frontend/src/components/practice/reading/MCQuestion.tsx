@@ -4,6 +4,7 @@ import { clsx } from "clsx";
 import { Question } from "../../../types";
 import { Button } from "../../ui";
 import { attemptsApi } from "../../../api";
+import { PracticeContentFrame } from "../shared/PracticeContentFrame";
 
 export function MCQuestion({
   question,
@@ -49,7 +50,11 @@ export function MCQuestion({
       : [];
 
   return (
-    <div className="practice-body">
+    <PracticeContentFrame
+      stepHint={
+        multiple ? "Chọn tất cả đáp án đúng" : "Chọn một đáp án"
+      }
+    >
       {question.content && (
         <div className="practice-passage-scroll">
           <p className="practice-prose">
@@ -136,7 +141,7 @@ export function MCQuestion({
             onClick={() => submitMutation.mutate()}
             disabled={selected.length === 0 || submitMutation.isPending}
           >
-            {submitMutation.isPending ? "Dang cham..." : "Chấm điểm"}
+            {submitMutation.isPending ? "Đang chấm…" : "Chấm điểm"}
           </Button>
         </div>
       )}
@@ -145,6 +150,6 @@ export function MCQuestion({
           <p className="text-sm font-bold text-brand-orange">{result.feedback}</p>
         </div>
       )}
-    </div>
+    </PracticeContentFrame>
   );
 }

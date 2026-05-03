@@ -59,7 +59,7 @@ const NAV_ON = LUX.goldPale;
 const NAV_OFF = "rgba(212,212,212,0.85)";
 
 const NAV = [
-  { label: "Overview", icon: LayoutDashboard, to: "/dashboard" },
+  { label: "Tổng quan", icon: LayoutDashboard, to: "/dashboard" },
 ];
 const SKILL_NAV = [
   { label: "Speaking",  icon: Mic2,       to: "/practice/speaking"  },
@@ -67,11 +67,11 @@ const SKILL_NAV = [
   { label: "Reading",   icon: BookOpen,   to: "/practice/reading"   },
   { label: "Listening", icon: Headphones, to: "/practice/listening" },
 ];
-const SAVED_NAV = [{ label: "Bookmarks", icon: Bookmark, to: "/bookmarks" }];
+const SAVED_NAV = [{ label: "Đã lưu", icon: Bookmark, to: "/bookmarks" }];
 const BOTTOM_NAV = [
-  { label: "Mock Test", icon: ClipboardList, to: "/mock-test" },
-  { label: "Premium",   icon: Crown,         to: "/premium"   },
-  { label: "Admin",     icon: Settings2,     to: "/admin"     },
+  { label: "Thi thử",  icon: ClipboardList, to: "/mock-test" },
+  { label: "Premium",  icon: Crown,         to: "/premium"   },
+  { label: "Quản trị", icon: Settings2,     to: "/admin"     },
 ];
 
 // ── Nav item ──────────────────────────────────────────────────────────────────
@@ -209,14 +209,14 @@ export function Sidebar({
 
         {/* ── Navigation ───────────────────────────────────────────── */}
         <div className="flex-1 overflow-y-auto px-2.5 py-4 space-y-0.5">
-          <SectionLabel>Menu</SectionLabel>
+          <SectionLabel>Trang chính</SectionLabel>
           {NAV.map((n) => (
             <NavItem key={n.to} {...n} onNavClick={onClose} />
           ))}
 
           <div className="my-3" />
 
-          <SectionLabel>Question Bank</SectionLabel>
+          <SectionLabel>Ngân hàng câu hỏi</SectionLabel>
           {SKILL_NAV.map((n) => (
             <NavItem key={n.to} {...n} onNavClick={onClose} />
           ))}
