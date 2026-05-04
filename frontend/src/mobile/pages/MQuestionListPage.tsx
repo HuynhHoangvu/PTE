@@ -4,6 +4,7 @@ import { useInfiniteQuery } from "@tanstack/react-query";
 import { clsx } from "clsx";
 import { questionsApi } from "../../api";
 import { QuestionType, QUESTION_TYPE_LABELS } from "../../types";
+import { getQuestionListPreview } from "../../utils/questionListPreview";
 import { MobileBackHeader } from "../layout/MobileShell";
 import { MSkeleton } from "../ui";
 
@@ -121,9 +122,7 @@ function QuestionCard({
   onPress: () => void;
 }) {
   const hasDone = !!question.latestScore || question.latestScore === 0;
-  const preview = (question.title || question.content || "")
-    .replace(/<[^>]+>/g, "")
-    .slice(0, 80);
+  const preview = getQuestionListPreview(question, 80);
 
   return (
     <button

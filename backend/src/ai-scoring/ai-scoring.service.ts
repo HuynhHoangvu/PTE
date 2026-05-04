@@ -1,8 +1,14 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { GoogleGenerativeAI, type ObjectSchema } from '@google/generative-ai';
 import { QuestionType } from '../questions/question.entity';
 import { Question } from '../questions/question.entity';
 import { isDeterministicQuestionType } from '../questions/deterministic-types';
+import {
+  geminiEssayScoreSchema,
+  geminiSpeakingScoreSchema,
+  geminiSstScoreSchema,
+  geminiSwtScoreSchema,
+} from './gemini-response-schemas';
 
 @Injectable()
 export class AiScoringService {
@@ -250,9 +256,13 @@ Return ONLY valid JSON (no markdown, no extra text):
     {"word": "exactWord", "issue": "brief issue", "tip": "specific fix tip in Vietnamese"}
   ]
 }
-totalScore = content + pronunciation + fluency (max 15).`;
+totalScore = content + pronunciation + fluency (max 15).
 
-    const raw = await this.callGemini(prompt, ['content', 'pronunciation', 'fluency']);
+IMPORTANT: Write feedback and tutor_tip as single-line strings (no raw line breaks inside the quotes).`;
+
+    const raw = await this.callGemini(prompt, ['content', 'pronunciation', 'fluency'], {
+      responseSchema: geminiSpeakingScoreSchema(),
+    });
     const { scoreBreakdown, totalScore } = this.normalizeBreakdown(
       raw.scoreBreakdown || {},
       { content: 5, pronunciation: 5, fluency: 5 },
@@ -295,9 +305,13 @@ Return ONLY valid JSON:
   "tutor_tip": "One specific tip in Vietnamese — e.g. 'Bạn đổi từ X thành Y, nhớ luyện nghe nhiều hơn để ghi nhớ từ chính xác'",
   "word_errors": [{"word": "exactWord", "issue": "brief", "tip": "tip in Vietnamese"}]
 }
-totalScore = content + pronunciation + fluency (max 13).`;
+totalScore = content + pronunciation + fluency (max 13).
 
-    const raw = await this.callGemini(prompt, ['content', 'pronunciation', 'fluency']);
+IMPORTANT: Write feedback and tutor_tip as single-line strings (no raw line breaks inside the quotes).`;
+
+    const raw = await this.callGemini(prompt, ['content', 'pronunciation', 'fluency'], {
+      responseSchema: geminiSpeakingScoreSchema(),
+    });
     const { scoreBreakdown, totalScore } = this.normalizeBreakdown(
       raw.scoreBreakdown || {},
       { content: 3, pronunciation: 5, fluency: 5 },
@@ -341,9 +355,13 @@ Return ONLY valid JSON:
   "tutor_tip": "Most important coaching point in Vietnamese. Be specific: mention a real word or phrase pattern from the response.",
   "word_errors": [{"word": "word", "issue": "issue", "tip": "Vietnamese tip"}]
 }
-totalScore = content + pronunciation + fluency (max 15).`;
+totalScore = content + pronunciation + fluency (max 15).
 
-    const raw = await this.callGemini(prompt, ['content', 'pronunciation', 'fluency']);
+IMPORTANT: Write feedback and tutor_tip as single-line strings (no raw line breaks inside the quotes).`;
+
+    const raw = await this.callGemini(prompt, ['content', 'pronunciation', 'fluency'], {
+      responseSchema: geminiSpeakingScoreSchema(),
+    });
     const { scoreBreakdown, totalScore } = this.normalizeBreakdown(
       raw.scoreBreakdown || {},
       { content: 5, pronunciation: 5, fluency: 5 },
@@ -405,9 +423,13 @@ Return ONLY valid JSON:
     {"original": "studentWord", "better": "academicAlternative", "reason": "Why this word scores higher in Vietnamese"}
   ]
 }
-totalScore = content+form+grammar+vocabulary (max 9).`;
+totalScore = content+form+grammar+vocabulary (max 9).
 
-    const raw = await this.callGemini(prompt, ['content', 'form', 'grammar', 'vocabulary']);
+IMPORTANT: feedback, tutor_tip, and strings inside vocab_suggestions must be single-line (no raw line breaks inside JSON strings).`;
+
+    const raw = await this.callGemini(prompt, ['content', 'form', 'grammar', 'vocabulary'], {
+      responseSchema: geminiSwtScoreSchema(),
+    });
     const { scoreBreakdown, totalScore } = this.normalizeBreakdown(
       raw.scoreBreakdown || {},
       { content: 4, form: 1, grammar: 2, vocabulary: 2 },
@@ -459,9 +481,14 @@ Return ONLY valid JSON:
     {"original": "wordTheyUsed", "better": "betterAlternative", "reason": "Explanation in Vietnamese why this scores higher"}
   ]
 }
-totalScore = sum of all 7 criteria (max 26).`;
+totalScore = sum of all 7 criteria (max 26).
 
-    const raw = await this.callGemini(prompt, ['content', 'form', 'structure', 'grammar', 'linguistic', 'vocabulary', 'spelling']);
+IMPORTANT: feedback, tutor_tip, and strings inside vocab_suggestions must be single-line (no raw line breaks inside JSON strings).`;
+
+    const raw = await this.callGemini(prompt, ['content', 'form', 'structure', 'grammar', 'linguistic', 'vocabulary', 'spelling'], {
+      responseSchema: geminiEssayScoreSchema(),
+      maxOutputTokens: 4096,
+    });
     const { scoreBreakdown, totalScore } = this.normalizeBreakdown(
       raw.scoreBreakdown || {},
       { content: 6, form: 2, structure: 6, grammar: 2, linguistic: 6, vocabulary: 2, spelling: 2 },
@@ -680,9 +707,13 @@ Score using PTE Core rubric:
 5. Spelling (0-2): Spelling accuracy
 
 Return ONLY JSON: {"content": n, "grammar": n, "vocabulary": n, "spelling": n, "form": n, "feedback": "...", "totalScore": n}
-totalScore = sum of all five (max 12).`;
+totalScore = sum of all five (max 12).
 
-    const raw = await this.callGemini(prompt, ['content', 'grammar', 'vocabulary', 'spelling', 'form']);
+IMPORTANT: feedback must be one single line (no raw line breaks inside the JSON string).`;
+
+    const raw = await this.callGemini(prompt, ['content', 'grammar', 'vocabulary', 'spelling', 'form'], {
+      responseSchema: geminiSstScoreSchema(),
+    });
     const { scoreBreakdown, totalScore } = this.normalizeBreakdown(
       raw.scoreBreakdown || {},
       { content: 4, form: 2, grammar: 2, vocabulary: 2, spelling: 2 },
@@ -724,13 +755,18 @@ totalScore = sum of all five (max 12).`;
   }
 
   // ── Gemini helper ─────────────────────────────────────────────────────────
-  private async callGemini(prompt: string, breakdownKeys: string[]) {
+  private async callGemini(
+    prompt: string,
+    breakdownKeys: string[],
+    options?: { responseSchema?: ObjectSchema; maxOutputTokens?: number },
+  ) {
     const model = this.genAI.getGenerativeModel({
       model: 'gemini-2.5-flash',
       generationConfig: {
         temperature: 0.2,
-        maxOutputTokens: 2048,
+        maxOutputTokens: options?.maxOutputTokens ?? 2048,
         responseMimeType: 'application/json',
+        ...(options?.responseSchema ? { responseSchema: options.responseSchema } : {}),
       },
     });
 
@@ -806,6 +842,42 @@ totalScore = sum of all five (max 12).`;
     };
   }
 
+  /**
+   * Trích object JSON đầu tiên bằng đếm ngoặc có tôn trọng chuỗi (tránh lastIndexOf('}') cắt nhầm).
+   */
+  private extractFirstBalancedJsonObject(text: string): string | null {
+    const start = text.indexOf('{');
+    if (start < 0) return null;
+    let depth = 0;
+    let inString = false;
+    let escape = false;
+    for (let i = start; i < text.length; i++) {
+      const c = text[i];
+      if (escape) {
+        escape = false;
+        continue;
+      }
+      if (inString) {
+        if (c === '\\') {
+          escape = true;
+          continue;
+        }
+        if (c === '"') inString = false;
+        continue;
+      }
+      if (c === '"') {
+        inString = true;
+        continue;
+      }
+      if (c === '{') depth++;
+      else if (c === '}') {
+        depth--;
+        if (depth === 0) return text.slice(start, i + 1);
+      }
+    }
+    return null;
+  }
+
   private parseGeminiJson(rawText: string): any {
     const cleaned = (rawText || '').replace(/```json\n?|```/g, '').trim();
     if (!cleaned) {
@@ -815,6 +887,15 @@ totalScore = sum of all five (max 12).`;
     try {
       return JSON.parse(cleaned);
     } catch {
+      const balanced = this.extractFirstBalancedJsonObject(cleaned);
+      if (balanced) {
+        try {
+          return JSON.parse(balanced);
+        } catch {
+          /* fall through */
+        }
+      }
+
       // Gemini đôi lúc trả thêm text trước/sau JSON, cố trích object JSON đầu tiên.
       const start = cleaned.indexOf('{');
       const end = cleaned.lastIndexOf('}');

@@ -1,3 +1,4 @@
+import { Capacitor } from "@capacitor/core";
 import { LocalNotifications } from "@capacitor/local-notifications";
 import { KEY_EXAM_DATE } from "../mobile/pages/MOnboardingGate";
 
@@ -96,13 +97,14 @@ export async function cancelAllNotifications(): Promise<void> {
   localStorage.removeItem(KEY_NOTIF_SETUP);
 }
 
+/**
+ * Whether local notifications UI should be shown (native shell only).
+ * Do not call LocalNotifications.checkPermissions() here — on some Android devices it crashes
+ * natively (NPE inside LocalNotificationsPlugin) when the activity/bridge is not ready,
+ * which took down the app when opening Profile.
+ */
 export async function isNotifSupported(): Promise<boolean> {
-  try {
-    await LocalNotifications.checkPermissions();
-    return true;
-  } catch {
-    return false;
-  }
+  return Capacitor.isNativePlatform();
 }
 
 export function getNotifHour(): number {
