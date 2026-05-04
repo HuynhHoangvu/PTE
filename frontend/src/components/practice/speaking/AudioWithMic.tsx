@@ -105,6 +105,7 @@ export function AudioWithMic({
               ? question.correctAnswer.join(" / ")
               : undefined)
         }
+        showSuggestedAfterScore={question.type !== "SPEAKING_ANSWER_SHORT_QUESTION"}
       />
     </PracticeContentFrame>
   );

@@ -64,6 +64,9 @@ export const usersApi = {
 export const questionsApi = {
   list: (params: Record<string, any>) =>
     api.get('/questions', { params }).then((r) => r.data),
+  /** Random one question matching type/skill (same filters as list). */
+  random: (params: { type?: string; skill?: string; level?: string }) =>
+    api.get('/questions/random', { params }).then((r) => r.data),
   getOne: (id: string) => api.get(`/questions/${id}`).then((r) => r.data),
   getByIds: (ids: string[]) =>
     ids.length

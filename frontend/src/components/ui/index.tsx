@@ -720,6 +720,8 @@ export function QuestionListDrawer({
   total,
   page,
   onPageChange,
+  onRandom,
+  randomBusy,
 }: {
   open: boolean;
   onClose: () => void;
@@ -729,6 +731,9 @@ export function QuestionListDrawer({
   total: number;
   page: number;
   onPageChange: (p: number) => void;
+  /** Random question same filters as list — from PracticeLayout */
+  onRandom?: () => void;
+  randomBusy?: boolean;
 }) {
   const [search, setSearch] = React.useState("");
   const filtered = items.filter(
@@ -772,7 +777,19 @@ export function QuestionListDrawer({
               className="flex-1 text-sm outline-none min-w-0"
             />
           </div>
-          <div className="text-xs text-gray-500 shrink-0">{total} câu</div>
+          <div className="flex items-center gap-2 shrink-0">
+            {onRandom && (
+              <button
+                type="button"
+                onClick={onRandom}
+                disabled={randomBusy || total === 0}
+                className="text-xs font-bold px-3 py-2 rounded-xl bg-amber-50 border border-amber-200 text-amber-950 hover:bg-amber-100 disabled:opacity-45 whitespace-nowrap"
+              >
+                {randomBusy ? "…" : "🎲 Random"}
+              </button>
+            )}
+            <span className="text-xs text-gray-500">{total} câu</span>
+          </div>
         </div>
 
         {/* List */}

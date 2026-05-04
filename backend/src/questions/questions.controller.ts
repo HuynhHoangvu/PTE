@@ -32,6 +32,12 @@ export class QuestionsController {
     return this.questionsService.getSkillProgress(skill, req.user.userId);
   }
 
+  /** Random question for practice — same filters as list (?type= / ?skill=) */
+  @Get('random')
+  findRandom(@Query() query: Pick<QuestionListQuery, 'skill' | 'type' | 'level'>, @Request() req) {
+    return this.questionsService.findRandom(query, req.user?.userId);
+  }
+
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.questionsService.findOne(id);

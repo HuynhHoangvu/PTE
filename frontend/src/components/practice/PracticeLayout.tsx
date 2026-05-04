@@ -39,6 +39,7 @@ export function PracticeLayout({ questionId, children }: PracticeLayoutProps) {
   const navigate = useNavigate();
   const [drawerOpen, setDrawerOpen] = React.useState(false);
   const [page, setPage] = React.useState(1);
+  const [randomBusy, setRandomBusy] = React.useState(false);
   const { bookmarked, toggle: toggleBookmark } = useBookmark(questionId);
 
   const { data: question, isLoading } = useQuery({
@@ -74,6 +75,22 @@ export function PracticeLayout({ questionId, children }: PracticeLayoutProps) {
     queryFn: () => questionsApi.getAdjacent(question!.code, 'next', question!.type),
     enabled: !!question,
   });
+
+  const handleRandomFromDrawer = async () => {
+    if (!question) return;
+    setRandomBusy(true);
+    try {
+      const q = await questionsApi.random({ type: question.type, skill: question.skill });
+      if (q?.id) {
+        navigate(`/question/${q.id}`);
+        setDrawerOpen(false);
+      }
+    } catch {
+      window.alert('Không lấy được câu ngẫu nhiên. Thử lại hoặc kiểm tra ngân hàng câu.');
+    } finally {
+      setRandomBusy(false);
+    }
+  };
 
   if (isLoading) return (
     <div className="flex items-center justify-center min-h-screen">
@@ -248,6 +265,8 @@ export function PracticeLayout({ questionId, children }: PracticeLayoutProps) {
         total={questionList?.total || 0}
         page={page}
         onPageChange={setPage}
+        onRandom={handleRandomFromDrawer}
+        randomBusy={randomBusy}
       />
     </div>
   );

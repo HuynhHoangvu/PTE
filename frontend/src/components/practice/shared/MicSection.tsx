@@ -18,6 +18,8 @@ export interface MicSectionProps {
   maxScore?: number;
   wordComparisonStatus?: "required_but_missing" | "enabled" | "disabled";
   suggestedAnswer?: string;
+  /** ASQ: đáp án đã nằm trong feedback — ẩn khối xanh trùng lặp */
+  showSuggestedAfterScore?: boolean;
 }
 
 export function MicSection({
@@ -30,6 +32,7 @@ export function MicSection({
   maxScore = 90,
   wordComparisonStatus = "disabled",
   suggestedAnswer,
+  showSuggestedAfterScore = true,
 }: MicSectionProps) {
   const qc = useQueryClient();
   const [attemptId, setAttemptId] = React.useState<string | null>(null);
@@ -231,7 +234,7 @@ export function MicSection({
               mode="speaking"
             />
           )}
-          {scoreResult.status === "SCORED" && suggestedAnswer && (
+          {scoreResult.status === "SCORED" && showSuggestedAfterScore && suggestedAnswer && (
             <div className="bg-blue-50 border border-blue-100 rounded-xl px-4 py-4">
               <h4 className="text-xs font-black uppercase tracking-widest text-blue-500 mb-2">
                 💡 Gợi ý câu trả lời

@@ -3,7 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { clsx } from "clsx";
 import { questionsApi } from "../../api";
-import { QuestionType, QUESTION_TYPE_LABELS } from "../../types";
+import { QuestionSkill, QuestionType, QUESTION_TYPE_LABELS } from "../../types";
 import { getQuestionListPreview } from "../../utils/questionListPreview";
 import { MobileBackHeader } from "../layout/MobileShell";
 import { MSkeleton } from "../ui";
@@ -39,8 +39,10 @@ export default function MQuestionListPage() {
   const { skill, type } = useParams<{ skill: string; type: string }>();
   const navigate = useNavigate();
   const qType = (type || "").toUpperCase() as QuestionType;
+  const skillKey = (skill || "").toUpperCase() as QuestionSkill;
   const label = QUESTION_TYPE_LABELS[qType] || qType;
   const icon = TYPE_ICONS[qType] || "📌";
+  const [randomBusy, setRandomBusy] = React.useState(false);
 
   const {
     data,
@@ -63,6 +65,19 @@ export default function MQuestionListPage() {
   const questions = data?.pages.flatMap((p: any) => p.data ?? []) ?? [];
   const total = data?.pages[0]?.total ?? 0;
 
+  const goRandom = async () => {
+    if (!qType) return;
+    setRandomBusy(true);
+    try {
+      const q = await questionsApi.random({ type: qType, skill: skillKey });
+      if (q?.id) navigate(`/question/${q.id}`);
+    } catch {
+      alert("Chưa có câu trong dạng này hoặc lỗi mạng. Thử lại sau.");
+    } finally {
+      setRandomBusy(false);
+    }
+  };
+
   return (
     <div className="mobile-page-full">
       <MobileBackHeader
@@ -76,6 +91,22 @@ export default function MQuestionListPage() {
       />
 
       <div className="practice-mobile-body px-4 py-3 space-y-2">
+        <button
+          type="button"
+          onClick={goRandom}
+          disabled={randomBusy || isLoading || total === 0}
+          className="w-full py-3.5 rounded-2xl font-bold text-sm text-gray-900 bg-gradient-to-r from-amber-100 to-brand-gold/30 border-2 border-brand-gold/50 active:scale-[0.98] transition-all disabled:opacity-50 disabled:active:scale-100 flex items-center justify-center gap-2"
+        >
+          {randomBusy ? (
+            <>
+              <span className="w-4 h-4 border-2 border-gray-500 border-t-transparent rounded-full animate-spin" />
+              Đang chọn…
+            </>
+          ) : (
+            <>🎲 Câu ngẫu nhiên{total > 0 ? ` (trong ${total} câu)` : ""}</>
+          )}
+        </button>
+
         {isLoading
           ? Array.from({ length: 6 }).map((_, i) => (
               <MSkeleton key={i} className="h-20 rounded-2xl" />
@@ -121,7 +152,7 @@ function QuestionCard({
   question: any;
   onPress: () => void;
 }) {
-  const hasDone = !!question.latestScore || question.latestScore === 0;
+  const hasDone = question.latestScore !== undefined && question.latestScore !== null;
   const preview = getQuestionListPreview(question, 80);
 
   return (
@@ -159,7 +190,7 @@ function QuestionCard({
       <div className="flex-shrink-0 flex flex-col items-end gap-1">
         {hasDone && (
           <span className="text-[11px] font-black text-green-600 bg-green-50 px-2 py-0.5 rounded-lg">
-            {question.latestScore}đ
+            {(question.latestScore ?? question.userScore) as number}đ
           </span>
         )}
         <svg

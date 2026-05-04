@@ -1,6 +1,6 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, Repository } from 'typeorm';
+import { In, Repository, SelectQueryBuilder } from 'typeorm';
 import { Question, QuestionSkill, QuestionType, QuestionLevel } from './question.entity';
 import { Attempt } from '../attempts/attempt.entity';
 
@@ -23,11 +23,12 @@ export class QuestionsService {
     @InjectRepository(Attempt) private attemptRepo: Repository<Attempt>,
   ) {}
 
-  async findAll(query: QuestionListQuery, userId?: string) {
-    const { skill, type, level, isTrending, isRepeated, search, page = 1, limit = 50 } = query;
-
-    const qb = this.questionRepo.createQueryBuilder('q');
-
+  /** Same filters as list view (RFIB/RWFIB code prefix, etc.) */
+  private applyListFilters(
+    qb: SelectQueryBuilder<Question>,
+    query: Pick<QuestionListQuery, 'skill' | 'type' | 'level' | 'isTrending' | 'isRepeated' | 'search'>,
+  ) {
+    const { skill, type, level, isTrending, isRepeated, search } = query;
     if (skill) qb.andWhere('q.skill = :skill', { skill });
     if (type) qb.andWhere('q.type = :type', { type });
     /** RFIB* = Reading FIB (kéo thả), RWFIB* = R&W FIB (dropdown) — lọc theo mã tránh trùng type trong DB làm lệch drawer */
@@ -42,6 +43,13 @@ export class QuestionsService {
     if (search) {
       qb.andWhere('(q.title ILIKE :s OR q.code ILIKE :s)', { s: `%${search}%` });
     }
+  }
+
+  async findAll(query: QuestionListQuery, userId?: string) {
+    const { page = 1, limit = 50 } = query;
+
+    const qb = this.questionRepo.createQueryBuilder('q');
+    this.applyListFilters(qb, query);
 
     qb.orderBy('q.code', 'ASC');
     qb.skip((page - 1) * limit).take(limit);
@@ -57,7 +65,12 @@ export class QuestionsService {
             where: { questionId: q.id, userId, status: 'SCORED' as any },
             order: { createdAt: 'DESC' },
           });
-          return { ...q, userScore: lastAttempt?.totalScore || 0 };
+          const score = lastAttempt?.totalScore;
+          return {
+            ...q,
+            userScore: score ?? 0,
+            ...(lastAttempt ? { latestScore: score } : {}),
+          };
         }),
       );
     }
@@ -69,6 +82,38 @@ export class QuestionsService {
       limit,
       totalPages: Math.ceil(total / limit),
     };
+  }
+
+  /**
+   * One random question matching list filters (same as GET /questions?type=&skill=).
+   */
+  async findRandom(query: Pick<QuestionListQuery, 'skill' | 'type' | 'level'>, userId?: string) {
+    if (!query.type && !query.skill) {
+      throw new BadRequestException('Query parameter "type" or "skill" is required');
+    }
+
+    const qb = this.questionRepo.createQueryBuilder('q');
+    this.applyListFilters(qb, query);
+
+    const q = await qb.orderBy('RANDOM()').limit(1).getOne();
+    if (!q) {
+      throw new NotFoundException('No question matches the filters');
+    }
+
+    if (userId) {
+      const lastAttempt = await this.attemptRepo.findOne({
+        where: { questionId: q.id, userId, status: 'SCORED' as any },
+        order: { createdAt: 'DESC' },
+      });
+      const score = lastAttempt?.totalScore;
+      return {
+        ...q,
+        userScore: score ?? 0,
+        ...(lastAttempt ? { latestScore: score } : {}),
+      };
+    }
+
+    return q;
   }
 
   async findOne(id: string) {

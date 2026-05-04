@@ -370,14 +370,61 @@ IMPORTANT: Write feedback and tutor_tip as single-line strings (no raw line brea
   }
 
   // ── Speaking: Answer Short Question ──────────────────────────────────────
+  /** Tách nhiều đáp án hợp lệ (dấu phẩy, ;, / — giống gợi ý trong DB). */
+  private parseAsqAcceptableAnswers(correct: unknown): string[] {
+    if (correct == null) return [];
+    if (Array.isArray(correct)) {
+      return correct.flatMap((c) => this.parseAsqAcceptableAnswers(c));
+    }
+    const s = String(correct).trim();
+    if (!s) return [];
+    return s
+      .split(/(?:,|;|\s*\/\s*)/)
+      .map((x) => x.trim())
+      .filter(Boolean);
+  }
+
+  private normalizeAsqText(s: string): string {
+    return s
+      .toLowerCase()
+      .trim()
+      .replace(/[.!?,…]+$/g, '')
+      .replace(/\s+/g, ' ');
+  }
+
+  /** Đúng nếu lời nói khớp một trong các cụm đáp án (không cần trùng cả chuỗi gộp). */
+  private asqTranscriptionMatches(transcription: string, acceptable: string[]): boolean {
+    const st = this.normalizeAsqText(transcription || '');
+    if (!st) return false;
+    return acceptable.some((raw) => {
+      const a = this.normalizeAsqText(raw);
+      if (!a) return false;
+      if (st === a) return true;
+      if (st.includes(a)) return true;
+      if (a.length >= 4 && a.includes(st)) return true;
+      return false;
+    });
+  }
+
   private async scoreAnswerShortQuestion(question: Question, transcription: string) {
-    const correct = question.correctAnswer;
-    const isCorrect = transcription?.toLowerCase().includes(String(correct).toLowerCase());
+    const acceptable = this.parseAsqAcceptableAnswers(question.correctAnswer);
+    const isCorrect =
+      acceptable.length > 0
+        ? this.asqTranscriptionMatches(transcription, acceptable)
+        : this.normalizeAsqText(transcription).includes(
+            this.normalizeAsqText(String(question.correctAnswer ?? '')),
+          );
+    const referenceLine =
+      acceptable.length > 0
+        ? acceptable.join(' · ')
+        : String(question.correctAnswer ?? '');
     return {
       totalScore: isCorrect ? 1 : 0,
       scoreBreakdown: { content: isCorrect ? 1 : 0, content_max: 1 },
-      feedback: isCorrect ? 'Chính xác! ✅' : `Câu trả lời mong đợi: "${correct}"`,
-      tutorTip: isCorrect ? '' : `Đáp án đúng là "${correct}". Hãy nghe lại câu hỏi và ghi nhớ từ khóa chính.`,
+      feedback: isCorrect
+        ? 'Chính xác! ✅'
+        : `Chưa khớp đáp án gợi ý. Một trong các cách trả lời được chấp nhận: ${referenceLine}`,
+      tutorTip: '',
       wordErrors: [],
       vocabSuggestions: [],
       transcription,
