@@ -5,6 +5,55 @@ import { Question } from "../../../types";
 import { AudioPlayer, Button, ScorePanel } from "../../ui";
 import { attemptsApi } from "../../../api";
 import { PracticeContentFrame } from "../shared/PracticeContentFrame";
+import { getPracticeDisplayMax } from "../../../constants/scoring";
+
+/** Parse feedback kiểu WFD "9/10 words correct" — dùng cho bài chấm cũ (scale 0–90). */
+function parseDictationWordScore(feedback?: string): { correct?: number; totalWords?: number } {
+  const m = feedback?.match(/(\d+)\s*\/\s*(\d+)\s*words/i);
+  if (!m) return {};
+  return { correct: Number(m[1]), totalWords: Number(m[2]) };
+}
+
+function DictationOrSstScorePanel({
+  result,
+  question,
+  displayMaxScore,
+}: {
+  result: { totalScore?: number; scoreBreakdown?: Record<string, number>; feedback?: string };
+  question: Question;
+  displayMaxScore: number;
+}) {
+  const bd = result.scoreBreakdown as Record<string, number> | undefined;
+  const rawTotal = result.totalScore ?? 0;
+  const parsed = parseDictationWordScore(result.feedback);
+
+  let displayTotal = rawTotal;
+  let contentMax = bd?.content_max ?? displayMaxScore;
+  let displayBreakdown = result.scoreBreakdown;
+
+  if (question.type === "LISTENING_DICTATION") {
+    contentMax = bd?.content_max ?? parsed.totalWords ?? displayMaxScore;
+    if (bd?.content_max != null) {
+      displayTotal = rawTotal;
+    } else if (parsed.correct != null) {
+      displayTotal = parsed.correct;
+    } else if (rawTotal > contentMax) {
+      displayTotal = Math.round((rawTotal / 90) * contentMax);
+    }
+    if (bd?.content_max == null) {
+      displayBreakdown = { ...bd, content: displayTotal, content_max: contentMax };
+    }
+  }
+
+  return (
+    <ScorePanel
+      totalScore={displayTotal}
+      breakdown={displayBreakdown}
+      feedback={result.feedback}
+      maxScore={contentMax}
+    />
+  );
+}
 
 export function AudioTextAnswer({
   question,
@@ -23,6 +72,12 @@ export function AudioTextAnswer({
   const [result, setResult] = React.useState<any>(null);
   const qc = useQueryClient();
   const wordCount = answer.trim().split(/\s+/).filter(Boolean).length;
+
+  const isSst = minWords != null || maxWords != null;
+  const displayMaxScore = React.useMemo(
+    () => (isSst ? maxScore : getPracticeDisplayMax(question)),
+    [isSst, maxScore, question],
+  );
   const fmt = (s: number) =>
     `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
 
@@ -143,11 +198,10 @@ export function AudioTextAnswer({
       )}
 
       {result?.status === "SCORED" && (
-        <ScorePanel
-          totalScore={result.totalScore}
-          breakdown={result.scoreBreakdown}
-          feedback={result.feedback}
-          maxScore={maxScore}
+        <DictationOrSstScorePanel
+          result={result}
+          question={question}
+          displayMaxScore={displayMaxScore}
         />
       )}
     </PracticeContentFrame>

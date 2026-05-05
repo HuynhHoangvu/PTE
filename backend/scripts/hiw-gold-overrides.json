@@ -1,5 +1,5 @@
 {
-  "_readme": "So tu sai tuy tung bai (khong co dinh). Them 'HIWxxxx': ['tu1', 'tu2', ...] dung chinh ta tren transcript.",
+  "_readme": "CHUAN HOA DAP AN HIW: Moi key HIWxxxx = mang cac TU SAI dung tren passage (dung chinh ta/giong man hinh). Backfill se uu tien file nay truoc Whisper. Bai trickly: nghe audio + so tay tu sai, bo vao day roi chay backfill --force --code HIWxxxx (khong can Whisper cho cau do). Hoac --strategy gemini de AI sinh lai tu Whisper.",
   "HIW0001": [
     "presents",
     "money",

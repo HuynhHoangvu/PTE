@@ -3,7 +3,7 @@
 #
 # Usage:
 #   $env:LOCAL_DATABASE_URL   = "postgresql://postgres:123456@127.0.0.1:5432/fly_edu"
-#   $env:RAILWAY_DATABASE_URL = "postgresql://postgres:PASSWORD@host:29530/railway"
+#   $env:RAILWAY_DATABASE_URL = "postgresql://..."   # hoặc REMOTE_DATABASE_URL
 #   .\scripts\sync-local-to-railway.ps1
 #
 # WARNING: dump with --clean adds DROP statements; restores overwrite objects on Railway.
@@ -65,12 +65,13 @@ function Remove-PsqlRestrictDirectives([string]$path) {
 
 $localUrl = $env:LOCAL_DATABASE_URL
 $railUrl  = $env:RAILWAY_DATABASE_URL
+if ([string]::IsNullOrWhiteSpace($railUrl)) { $railUrl = $env:REMOTE_DATABASE_URL }
 
 if ([string]::IsNullOrWhiteSpace($localUrl)) {
   throw "Set env LOCAL_DATABASE_URL (e.g. postgresql://postgres:...@127.0.0.1:5432/fly_edu)."
 }
 if ([string]::IsNullOrWhiteSpace($railUrl)) {
-  throw "Set env RAILWAY_DATABASE_URL."
+  throw "Set env RAILWAY_DATABASE_URL or REMOTE_DATABASE_URL (cloud Postgres connection string)."
 }
 
 if ($railUrl -notmatch 'sslmode=') {

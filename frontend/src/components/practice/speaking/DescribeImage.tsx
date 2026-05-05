@@ -1,6 +1,7 @@
 import { Question } from "../../../types";
 import { MicSection } from "../shared/MicSection";
 import { PracticeContentFrame, PracticeStepHint } from "../shared/PracticeContentFrame";
+import { SpeakingPromptAudio } from "../shared/SpeakingPromptAudio";
 import { getMaxScore } from "../../../constants/scoring";
 
 export function DescribeImage({ question }: { question: Question }) {
@@ -23,6 +24,7 @@ export function DescribeImage({ question }: { question: Question }) {
   return (
     <div>
       <PracticeStepHint>Xem hình → Mô tả đủ ý bằng mic</PracticeStepHint>
+      <SpeakingPromptAudio question={question}>
       {/* Mobile: ảnh gọn (max-height) để MicSection còn chỗ; desktop: layout 2 cột */}
       <div className="flex flex-col lg:flex-row lg:min-h-0 gap-3 lg:gap-0">
         <div className="px-3 pt-2 pb-1 sm:px-6 sm:py-5 lg:border-r lg:border-gray-100 lg:flex-[1.15] lg:min-w-0 flex flex-col">
@@ -66,6 +68,7 @@ export function DescribeImage({ question }: { question: Question }) {
           </div>
         </div>
       )}
+      </SpeakingPromptAudio>
     </div>
   );
 }

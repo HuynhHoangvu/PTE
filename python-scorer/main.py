@@ -7,6 +7,7 @@ load_dotenv(_SCORER_ROOT / ".env", override=True)
 
 import os
 import base64
+from typing import Optional
 import tempfile
 import numpy as np
 from fastapi import FastAPI, HTTPException
@@ -179,11 +180,12 @@ async def api_transcribe(req: TranscribeRequest):
 class FindIncorrectWordsRequest(BaseModel):
     content: str
     transcript: str
+    strategy: Optional[str] = "auto"
 
 @app.post("/find-incorrect-words", response_model=dict)
 async def api_find_incorrect_words(req: FindIncorrectWordsRequest):
     try:
-        words = await find_incorrect_words(req.content, req.transcript)
+        words = await find_incorrect_words(req.content, req.transcript, req.strategy or "auto")
         return {"incorrect_words": words}
     except Exception as e:
         logger.error(f"find-incorrect-words error: {e}")

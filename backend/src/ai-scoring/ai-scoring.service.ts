@@ -726,10 +726,10 @@ IMPORTANT: feedback, tutor_tip, and strings inside vocab_suggestions must be sin
     for (const [w, cnt] of refCount) correct += Math.min(cnt, stuCount.get(w) ?? 0);
 
     const total = Math.max(refWords.length, 1);
-    const totalScore = Math.round((correct / total) * 90);
+    // WFD: hiển thị theo chuẩn luyện tập — mỗi từ đúng = 1 điểm tối đa N từ (không map 0–90 toàn bài thi)
     return {
-      totalScore,
-      scoreBreakdown: { content: totalScore },
+      totalScore: correct,
+      scoreBreakdown: { content: correct, content_max: total },
       feedback: `${correct}/${total} words correct.`,
     };
   }

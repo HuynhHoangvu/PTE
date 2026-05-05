@@ -3,6 +3,7 @@ import { Question } from "../../../types";
 import { AudioPlayer } from "../../ui";
 import { MicSection } from "../shared/MicSection";
 import { PracticeContentFrame } from "../shared/PracticeContentFrame";
+import { SpeakingPromptAudio } from "../shared/SpeakingPromptAudio";
 
 export function AudioWithMic({
   question,
@@ -27,8 +28,11 @@ export function AudioWithMic({
         ? "Nghe kỹ → Trả lời bằng mic"
         : "Chuẩn bị → Ghi âm trả lời";
 
+  const extras = question.content ? [question.content] : [];
+
   return (
     <PracticeContentFrame stepHint={stepHint}>
+      <SpeakingPromptAudio question={question} extraEnglishParts={extras}>
       {/* Transcript SGD */}
       {isSGD && !question.audioUrl && question.content && (
         <div className="bg-purple-50 border border-purple-200 rounded-xl px-3 py-3 sm:px-4 sm:py-4 max-h-[42vh] sm:max-h-none overflow-y-auto">
@@ -107,6 +111,7 @@ export function AudioWithMic({
         }
         showSuggestedAfterScore={question.type !== "SPEAKING_ANSWER_SHORT_QUESTION"}
       />
+      </SpeakingPromptAudio>
     </PracticeContentFrame>
   );
 }

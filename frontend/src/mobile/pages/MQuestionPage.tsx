@@ -5,7 +5,7 @@ import { questionsApi, attemptsApi } from "../../api";
 import { Question, QUESTION_TYPE_LABELS } from "../../types";
 import { MobileBackHeader } from "../layout/MobileShell";
 import { MBadge, MErrorState, MSkeletonQuestion, MCompletionToast } from "../ui";
-import { getMaxScore, normalizeHistoryScore, DETERMINISTIC_TYPES } from "../../constants/scoring";
+import { getPracticeDisplayMax, normalizeHistoryScore, DETERMINISTIC_TYPES } from "../../constants/scoring";
 import {
   ReadAloud,
   RepeatSentence,
@@ -62,13 +62,13 @@ function QuestionBody({ question, attempts, onSubmit }: { question: Question; at
   if (type === "SPEAKING_REPEAT_SENTENCE")
     return <RepeatSentence question={question} />;
   if (type === "SPEAKING_ANSWER_SHORT_QUESTION")
-    return <AudioWithMic question={question} maxScore={getMaxScore(type)} />;
+    return <AudioWithMic question={question} maxScore={getPracticeDisplayMax(question)} />;
   if (
     type === "SPEAKING_RETELL_LECTURE" ||
     type === "SPEAKING_SUMMARISE_GROUP_DISCUSSION" ||
     type === "SPEAKING_RESPOND_TO_SITUATION"
   )
-    return <AudioWithMic question={question} maxScore={getMaxScore(type)} />;
+    return <AudioWithMic question={question} maxScore={getPracticeDisplayMax(question)} />;
   if (type === "SPEAKING_DESCRIBE_IMAGE")
     return <DescribeImage question={question} />;
 
@@ -232,7 +232,7 @@ export default function MQuestionPage() {
   const attempts = attemptsData || [];
 
   const isDeterministic = DETERMINISTIC_TYPES.has(question.type);
-  const qMax = getMaxScore(question.type);
+  const qMax = getPracticeDisplayMax(question);
 
   const analysisRows = attempts.map((a: any) => ({
     id: a.id,

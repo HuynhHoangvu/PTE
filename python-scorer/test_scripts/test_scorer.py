@@ -27,7 +27,10 @@ def header(title: str):
 
 
 def show(result, label="Result"):
-    print(f"  [{label}] Score: {result.total_score}/90")
+    bd = result.score_breakdown or {}
+    mx = bd.get("content_max") or bd.get("total_max")
+    suffix = f"/{mx}" if mx else "/90"
+    print(f"  [{label}] Score: {result.total_score}{suffix}")
     print(f"  Breakdown: {result.score_breakdown}")
     print(f"  Feedback: {result.feedback}")
     if result.transcription:

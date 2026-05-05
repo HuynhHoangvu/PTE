@@ -46,27 +46,44 @@ function scoreColor(pct: number) {
 
 // ── Highlight mispronounced words in transcription ────────────────────────────
 function HighlightedTranscript({
-  transcription, wordErrors,
+  transcription,
+  wordErrors,
 }: {
-  transcription: string; wordErrors: WordError[];
+  transcription: string;
+  wordErrors: WordError[];
 }) {
-  const errorWords = new Set(wordErrors.map((e) => e.word.toLowerCase()));
-  const words = transcription.split(/(\s+)/);
+  const errorByStem = React.useMemo(() => {
+    const m = new Map<string, WordError>();
+    for (const e of wordErrors) {
+      const k = e.word.toLowerCase().replace(/[^a-z0-9']/g, "");
+      if (k) m.set(k, e);
+    }
+    return m;
+  }, [wordErrors]);
+
+  const tokens = transcription.split(/(\s+)/);
 
   return (
     <p className="text-sm text-gray-700 leading-relaxed">
-      {words.map((token, i) => {
-        const clean = token.trim().replace(/[.,!?;:'"()]/g, "").toLowerCase();
-        const err = wordErrors.find((e) => e.word.toLowerCase() === clean);
+      {tokens.map((token, i) => {
+        const trimmed = token.trim();
+        if (!trimmed) return <span key={i}>{token}</span>;
+        const stemClean = trimmed
+          .replace(/^[^\w]+|[^\w]+$/g, "")
+          .toLowerCase()
+          .replace(/[^a-z0-9']/g, "");
+        const err = stemClean ? errorByStem.get(stemClean) : undefined;
         if (err) {
           return (
             <span
               key={i}
-              className="inline-flex items-center gap-0.5 bg-red-100 text-red-700 border-b-2 border-red-400 rounded px-0.5 mx-0.5 cursor-pointer font-semibold"
+              className="inline-flex items-center gap-0.5 bg-red-100 text-red-700 border-b-2 border-red-400 rounded px-0.5 mx-0.5 font-semibold"
               title={err.tip}
             >
-              {token.trim()}
-              <span className="text-[9px] text-red-400">⚠</span>
+              {trimmed}
+              <span className="text-[9px] text-red-400" aria-hidden>
+                ⚠
+              </span>
             </span>
           );
         }

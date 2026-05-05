@@ -266,7 +266,9 @@ export function RecordingWaveform({ audioUrl, durationSec }: RecordingWaveformPr
           <div className="flex items-center gap-3">
             {/* Play/Pause button */}
             <button
+              type="button"
               onClick={togglePlay}
+              aria-label={isPlaying ? "Tạm dừng phát lại bản ghi âm" : "Phát lại bản ghi âm của bạn"}
               className="w-10 h-10 rounded-xl bg-brand-gold flex items-center justify-center flex-shrink-0 shadow-gold-sm active:scale-95 transition-transform"
             >
               {isPlaying ? (

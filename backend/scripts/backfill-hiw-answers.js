@@ -8,10 +8,10 @@
  *   node scripts/backfill-hiw-answers.js --dry-run     -- xem ket qua, KHONG ghi DB
  *   node scripts/backfill-hiw-answers.js --code HIW0001 -- chi xu ly 1 cau cu the
  *   node scripts/backfill-hiw-answers.js --code HIW0002 --force  -- ghi de dap an 1 cau (can python-scorer + /transcribe + /find-incorrect-words)
+ *   node scripts/backfill-hiw-answers.js --force --strategy gemini  -- chi Gemini (bai tricky; can GEMINI key)
+ *   --strategy: auto | gemini | flat | sentence | merged (API python-scorer /find-incorrect-words)
  *
- * Dap an da kiem tay (khong goi Gemini/Whisper): scripts/hiw-gold-overrides.json
- *   Moi key la ma cau (HIW0001, ...); value la mang cac tu SAI tren transcript — so luong tuy bai (2, 5, 7...).
- *   Chi key khop /^HIW\\d+$/i + mang string moi duoc dung; key khac (vd. "_readme") bo qua.
+ * Chuẩn đáp án tay (ưu tiên khi backfill): scripts/hiw-gold-overrides.json — đúng chính tả trên passage.
  */
 
 const path = require("path");
@@ -44,6 +44,10 @@ const FORCE = process.argv.includes("--force");
 const DRY_RUN = process.argv.includes("--dry-run");
 const CODE_FILTER = (() => { const i = process.argv.indexOf("--code"); return i >= 0 ? process.argv[i + 1] : null; })();
 const FROM_CODE = (() => { const i = process.argv.indexOf("--from"); return i >= 0 ? process.argv[i + 1] : null; })();
+const STRATEGY = (() => {
+  const i = process.argv.indexOf("--strategy");
+  return i >= 0 ? process.argv[i + 1] : "auto";
+})();
 
 async function transcribeAudio(buf, mime) {
   const res = await fetch(`${PYTHON_SCORER_URL}/transcribe`, {
@@ -56,12 +60,12 @@ async function transcribeAudio(buf, mime) {
   return (data.text || data.transcription || "").trim();
 }
 
-async function findIncorrectWordsViaGemini(content, transcript) {
+async function findIncorrectWords(content, transcript, strategy = "auto") {
   const res = await fetch(`${PYTHON_SCORER_URL}/find-incorrect-words`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ content, transcript }),
-    signal: AbortSignal.timeout(60000),
+    body: JSON.stringify({ content, transcript, strategy }),
+    signal: AbortSignal.timeout(120000),
   });
   if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`);
   const data = await res.json();
@@ -121,7 +125,7 @@ async function main() {
         });
 
   if (DRY_RUN) console.log("⚠️  DRY-RUN mode — khong ghi vao DB\n");
-  console.log(`Found ${rows.length} HIW questions, processing ${toProcess.length} (force=${FORCE}, dry-run=${DRY_RUN})\n`);
+  console.log(`Found ${rows.length} HIW questions, processing ${toProcess.length} (force=${FORCE}, dry-run=${DRY_RUN}, strategy=${STRATEGY})\n`);
 
   const goldOverrides = loadGoldOverrides();
   if (Object.keys(goldOverrides).length) {
@@ -148,7 +152,7 @@ async function main() {
           continue;
         }
 
-        incorrectWords = await withRetry(() => findIncorrectWordsViaGemini(row.content, transcript));
+        incorrectWords = await withRetry(() => findIncorrectWords(row.content, transcript, STRATEGY));
 
         console.log(`  Transcript: "${transcript.slice(0, 120)}..."`);
         console.log(`  Words (${incorrectWords.length}): [${incorrectWords.join(", ")}]`);

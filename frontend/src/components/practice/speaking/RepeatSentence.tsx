@@ -3,6 +3,7 @@ import { Question } from "../../../types";
 import { Button } from "../../ui";
 import { MicSection } from "../shared/MicSection";
 import { PracticeContentFrame } from "../shared/PracticeContentFrame";
+import { SpeakingPromptAudio } from "../shared/SpeakingPromptAudio";
 import { repeatSentenceReferenceText } from "../shared/WordComparison";
 import { getMaxScore } from "../../../constants/scoring";
 
@@ -82,6 +83,7 @@ export function RepeatSentence({ question }: { question: Question }) {
 
   return (
     <PracticeContentFrame stepHint={stepHint}>
+      <SpeakingPromptAudio question={question}>
       {question.audioUrl && (
         <audio ref={audioRef} src={question.audioUrl} preload="auto" className="hidden" />
       )}
@@ -134,6 +136,7 @@ export function RepeatSentence({ question }: { question: Question }) {
           wordComparisonStatus={refForMic ? "enabled" : "required_but_missing"}
         />
       )}
+      </SpeakingPromptAudio>
     </PracticeContentFrame>
   );
 }

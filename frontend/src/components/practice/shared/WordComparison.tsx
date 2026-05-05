@@ -11,6 +11,50 @@ export function repeatSentenceReferenceText(q: Question): string | null {
   return null;
 }
 
+const normWord = (s: string) =>
+  s
+    .toLowerCase()
+    .replace(/[^a-z0-9']/g, "")
+    .trim();
+
+/**
+ * So khớp theo thứ tự: mỗi từ trong đáp án tìm lần lượt trong bản ghi (không dùng Set — tránh đếm trùng / sai thứ tự).
+ */
+export function alignReferenceWordsOrdered(original: string, transcription: string) {
+  const origWords = original
+    .toLowerCase()
+    .replace(/[^a-z0-9\s']/g, " ")
+    .split(/\s+/)
+    .map(normWord)
+    .filter(Boolean);
+  const transWords = transcription
+    .toLowerCase()
+    .replace(/[^a-z0-9\s']/g, " ")
+    .split(/\s+/)
+    .map(normWord)
+    .filter(Boolean);
+
+  let ti = 0;
+  const results = origWords.map((ow) => {
+    let correct = false;
+    while (ti < transWords.length) {
+      if (transWords[ti] === ow) {
+        correct = true;
+        ti++;
+        break;
+      }
+      ti++;
+    }
+    return { word: ow, correct };
+  });
+
+  const correctCount = results.filter((r) => r.correct).length;
+  const pct =
+    origWords.length > 0 ? Math.round((correctCount / origWords.length) * 100) : 0;
+
+  return { results, correctCount, totalRef: origWords.length, pct };
+}
+
 export function WordComparison({
   original,
   transcription,
@@ -18,31 +62,23 @@ export function WordComparison({
   original: string;
   transcription: string;
 }) {
-  const normalize = (s: string) =>
-    s
-      .toLowerCase()
-      .replace(/[^a-z0-9\s']/g, "")
-      .trim();
-  const origWords = normalize(original).split(/\s+/).filter(Boolean);
-  const transWords = normalize(transcription).split(/\s+/).filter(Boolean);
-
-  const transWordSet = new Set(transWords);
-
-  const results = origWords.map((w) => ({
-    word: w,
-    correct: transWordSet.has(w),
-  }));
-
-  const correctCount = results.filter((r) => r.correct).length;
-  const pct =
-    origWords.length > 0
-      ? Math.round((correctCount / origWords.length) * 100)
-      : 0;
+  const { results, correctCount, totalRef, pct } = alignReferenceWordsOrdered(
+    original,
+    transcription,
+  );
 
   return (
-    <div className="bg-white border border-gray-200 rounded-xl px-4 py-3">
+    <div
+      className="bg-white border border-gray-200 rounded-xl px-4 py-3"
+      role="region"
+      aria-label="So sánh từng từ bạn nói với bài gốc"
+    >
       <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-3">
         ✓✗ So sánh với bài gốc
+      </p>
+
+      <p className="text-xs text-gray-500 mb-2 leading-snug">
+        So khớp <strong>theo thứ tự</strong> câu nói: từ đúng tiếng Anh được tô xanh; thiếu/sai thứ tự → đỏ.
       </p>
 
       <p className="text-sm leading-loose">
@@ -54,7 +90,11 @@ export function WordComparison({
                 ? "text-green-700 bg-green-50 border-green-300"
                 : "text-red-600 bg-red-50 border-red-200 line-through decoration-red-400"
             }`}
-            title={r.correct ? "✓ Phát âm đúng" : "✗ Không phát âm từ này"}
+            title={
+              r.correct
+                ? "✓ Khớp thứ tự trong bản ghi"
+                : "✗ Chưa nghe thấy đúng từ này (theo thứ tự)"
+            }
           >
             {r.word}
           </span>
@@ -84,7 +124,7 @@ export function WordComparison({
                   : "text-red-600"
             }`}
           >
-            {correctCount}/{origWords.length}
+            {correctCount}/{totalRef}
           </div>
         </div>
       </div>
