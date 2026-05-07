@@ -46,13 +46,35 @@ async function extractFromDom(page) {
     const codeMatch = bodyText.match(/(RASA\d{4,})|(RTS\d{4,})/i);
     const code = codeMatch ? (codeMatch[1] || codeMatch[2]).toUpperCase() : null;
 
-    // Tìm đoạn text mô tả tình huống (nằm dưới thanh audio)
-    // Thường là đoạn text dài nhất sau phần hướng dẫn
-    const instructionIdx = normalized.findIndex(v => v.toLowerCase().includes("please answer as completely as you can"));
+    // Tìm đoạn đề RTS thật (text dưới audio), tránh lấy menu/header.
+    // Ưu tiên đúng p.MuiTypography-body1 chứa câu hỏi dài có dấu "?"
     let situationText = null;
-    if (instructionIdx !== -1 && normalized[instructionIdx + 1]) {
-       // Thường là block ngay sau đó hoặc block dài nhất trong khu vực đó
-       situationText = normalized[instructionIdx + 1];
+    const pCandidates = Array.from(
+      document.querySelectorAll("p.MuiTypography-root.MuiTypography-body1, p.MuiTypography-body1, p")
+    )
+      .map((el) => (el.innerText || "").replace(/\s+/g, " ").trim())
+      .filter(Boolean);
+
+    const isInstruction = (t) =>
+      /listen to and read a description of situation|please answer as completely as you can|you will have \d+ seconds/i.test(
+        t
+      );
+    const isNoise = (t) =>
+      /question bank|magic centre|documentation|resources|tips & sample|analysis/i.test(t);
+
+    // 1) Ưu tiên câu có dấu hỏi, đủ dài, không phải instruction/noise
+    const byQuestionMark = pCandidates.find(
+      (t) => t.includes("?") && t.length >= 40 && !isInstruction(t) && !isNoise(t)
+    );
+    if (byQuestionMark) {
+      situationText = byQuestionMark;
+    } else {
+      // 2) fallback: đoạn dài nhất còn lại sau khi loại instruction/noise
+      const filtered = pCandidates.filter((t) => t.length >= 40 && !isInstruction(t) && !isNoise(t));
+      if (filtered.length > 0) {
+        filtered.sort((a, b) => b.length - a.length);
+        situationText = filtered[0];
+      }
     }
 
     const audio = document.querySelector("audio");
@@ -77,7 +99,9 @@ async function extractFromDom(page) {
 
     return {
       code,
-      content: situationText, // Nội dung tình huống
+      // Chỉ lấy PHẦN CHỮ dưới file ghi âm cho app hiển thị
+      content: situationText,
+      // audioUrl giữ lại nếu sau này cần, nhưng không bắt buộc
       audioUrl,
       canGoNext,
     };
@@ -89,7 +113,7 @@ async function clickNext(page) {
   if ((await nextButton.count()) === 0) return false;
   if (!(await nextButton.isEnabled())) return false;
   await nextButton.click();
-  await sleep(1500); 
+  await sleep(500); 
   return true;
 }
 
@@ -165,8 +189,8 @@ async function main() {
     await sleep(800);
     const data = await extractFromDom(page);
 
-    if (!data.code || !data.audioUrl) {
-      console.log(`Bo qua item ${i + 1}: CODE = ${data.code}, AUDIO_URL = ${data.audioUrl}`);
+    if (!data.code || !data.content) {
+      console.log(`Bo qua item ${i + 1}: CODE = ${data.code}, CONTENT = ${data.content}`);
       const moved = await clickNext(page);
       if (!moved) break;
       continue;
@@ -181,7 +205,7 @@ async function main() {
     try {
         const sql = `
           INSERT INTO questions ("code","skill","type","content","audioUrl","level","prepTime","responseTime")
-          VALUES ($1,'SPEAKING','SPEAKING_RESPOND_TO_SITUATION',$2,$3,'Medium',10,40)
+          VALUES ($1,'SPEAKING','SPEAKING_RESPOND_TO_SITUATION',$2,NULL,'Medium',10,40)
           ON CONFLICT ("code")
           DO UPDATE SET
             "skill" = EXCLUDED."skill",
@@ -192,13 +216,15 @@ async function main() {
           RETURNING (xmax = 0) AS inserted
         `;
 
-        const res = await db.query(sql, [data.code, data.content, data.audioUrl]);
+        const res = await db.query(sql, [data.code, data.content]);
         if (res.rows?.[0]?.inserted) inserted += 1;
         else updated += 1;
 
+        const preview = (data.content || "").replace(/\s+/g, " ").trim().slice(0, 180);
         console.log(
-          `[${i + 1}] ${data.code} | ${res.rows?.[0]?.inserted ? "INSERT" : "UPDATE"} | ${data.audioUrl}`
+          `[${i + 1}] ${data.code} | ${res.rows?.[0]?.inserted ? "INSERT" : "UPDATE"}`
         );
+        console.log(`    content: ${preview}${preview.length >= 180 ? "..." : ""}`);
     } catch (dbErr) {
         console.error(`Loi DB voi ${data.code}:`, dbErr.message);
     }

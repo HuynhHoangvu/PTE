@@ -21,6 +21,7 @@ export function AudioWithMic({
   }, [question.id, question.audioUrl]);
 
   const isSGD = question.type === "SPEAKING_SUMMARISE_GROUP_DISCUSSION";
+  const isRTS = question.type === "SPEAKING_RESPOND_TO_SITUATION";
   const stepHint =
     isSGD && !question.audioUrl && question.content
       ? "Đọc thoại nhóm → Ghi âm tóm tắt"
@@ -33,6 +34,27 @@ export function AudioWithMic({
   return (
     <PracticeContentFrame stepHint={stepHint}>
       <SpeakingPromptAudio question={question} extraEnglishParts={extras}>
+      {/* Prompt text for RTS */}
+      {isRTS && question.content && (
+        <div className="bg-blue-50 border border-blue-200 rounded-xl px-3 py-3 sm:px-4 sm:py-4">
+          <p className="text-[10px] font-black uppercase tracking-widest text-blue-700 mb-2 sm:mb-3">
+            💬 Tình huống
+          </p>
+          <div className="space-y-2">
+            {question.content.split("\n").map((line, i) =>
+              line.trim() ? (
+                <p
+                  key={i}
+                  className="text-[15px] sm:text-[15px] text-blue-950 leading-7 sm:leading-7 whitespace-pre-wrap break-words"
+                >
+                  {line}
+                </p>
+              ) : null
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Transcript SGD */}
       {isSGD && !question.audioUrl && question.content && (
         <div className="bg-purple-50 border border-purple-200 rounded-xl px-3 py-3 sm:px-4 sm:py-4 max-h-[42vh] sm:max-h-none overflow-y-auto">

@@ -21,6 +21,27 @@ export function useRecorder({ prepSeconds = 0, maxSeconds = 40, onStop }: UseRec
   const elapsedRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const startTimeRef = useRef<number>(0);
 
+  const playBeep = () => {
+    try {
+      const AudioCtx = (window as any).AudioContext || (window as any).webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = 1000;
+      gain.gain.value = 0.08;
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      const now = ctx.currentTime;
+      osc.start(now);
+      osc.stop(now + 0.12);
+      osc.onended = () => ctx.close();
+    } catch {
+      // ignore beep errors
+    }
+  };
+
   const clearTimers = () => {
     if (countdownRef.current) clearInterval(countdownRef.current);
     if (elapsedRef.current) clearInterval(elapsedRef.current);
@@ -89,6 +110,7 @@ export function useRecorder({ prepSeconds = 0, maxSeconds = 40, onStop }: UseRec
       stream.getTracks().forEach((t) => t.stop());
     };
     recorder.start(100);
+    playBeep();
     setState('recording');
     setElapsed(0);
     elapsedRef.current = setInterval(() => {
