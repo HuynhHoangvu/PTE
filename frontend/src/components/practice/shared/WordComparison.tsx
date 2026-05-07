@@ -34,19 +34,38 @@ export function alignReferenceWordsOrdered(original: string, transcription: stri
     .map(normWord)
     .filter(Boolean);
 
-  let ti = 0;
-  const results = origWords.map((ow) => {
-    let correct = false;
-    while (ti < transWords.length) {
-      if (transWords[ti] === ow) {
-        correct = true;
-        ti++;
-        break;
-      }
-      ti++;
+  // LCS-style alignment in pure TS: reduces cascade penalty after local mismatch.
+  const n = origWords.length;
+  const m = transWords.length;
+  const dp: number[][] = Array.from({ length: n + 1 }, () => Array(m + 1).fill(0));
+  for (let i = n - 1; i >= 0; i--) {
+    for (let j = m - 1; j >= 0; j--) {
+      dp[i][j] =
+        origWords[i] === transWords[j]
+          ? 1 + dp[i + 1][j + 1]
+          : Math.max(dp[i + 1][j], dp[i][j + 1]);
     }
-    return { word: ow, correct };
-  });
+  }
+
+  const correctRef = new Set<number>();
+  let i = 0;
+  let j = 0;
+  while (i < n && j < m) {
+    if (origWords[i] === transWords[j]) {
+      correctRef.add(i);
+      i++;
+      j++;
+    } else if (dp[i + 1][j] >= dp[i][j + 1]) {
+      i++;
+    } else {
+      j++;
+    }
+  }
+
+  const results = origWords.map((ow, idx) => ({
+    word: ow,
+    correct: correctRef.has(idx),
+  }));
 
   const correctCount = results.filter((r) => r.correct).length;
   const pct =
@@ -75,10 +94,6 @@ export function WordComparison({
     >
       <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-3">
         ✓✗ So sánh với bài gốc
-      </p>
-
-      <p className="text-xs text-gray-500 mb-2 leading-snug">
-        So khớp <strong>theo thứ tự</strong> câu nói: từ đúng tiếng Anh được tô xanh; thiếu/sai thứ tự → đỏ.
       </p>
 
       <p className="text-sm leading-loose">

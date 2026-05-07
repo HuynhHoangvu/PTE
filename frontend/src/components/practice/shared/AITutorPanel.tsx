@@ -24,6 +24,7 @@ interface AITutorPanelProps {
   wordErrors?: WordError[];
   vocabSuggestions?: VocabSuggestion[];
   mode?: "speaking" | "writing";
+  showTranscriptSection?: boolean;
 }
 
 const SCORE_LABELS: Record<string, string> = {
@@ -121,6 +122,7 @@ function ScoreRing({ score, max, size = 72 }: { score: number; max: number; size
 export function AITutorPanel({
   totalScore: rawTotal, maxScore, feedback, tutorTip, breakdown,
   transcription, wordErrors = [], vocabSuggestions = [], mode = "speaking",
+  showTranscriptSection = true,
 }: AITutorPanelProps) {
   const [showTranscript, setShowTranscript] = React.useState(false);
   const [expandedError, setExpandedError] = React.useState<number | null>(null);
@@ -274,7 +276,7 @@ export function AITutorPanel({
       )}
 
       {/* ── Transcription (Speaking) ── */}
-      {mode === "speaking" && transcription && (
+      {showTranscriptSection && mode === "speaking" && transcription && (
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
           <button
             onClick={() => setShowTranscript((v) => !v)}
@@ -311,13 +313,6 @@ export function AITutorPanel({
       )}
 
       {/* ── Practice again CTA ── */}
-      {pct < 0.8 && (
-        <div className="text-center py-2">
-          <p className="text-xs text-gray-400">
-            🎯 Mục tiêu: đạt ≥80% để tự tin trong kỳ thi thật
-          </p>
-        </div>
-      )}
     </div>
   );
 }

@@ -79,11 +79,24 @@ def _compute_word_alignment_read_aloud(ref_words: list, hyp_words: list) -> dict
 
 def _score_content_read_aloud(ref_words: list, hyp_words: list) -> tuple:
     """
-    Score content accuracy based on EXACT word matches using SequenceMatcher.
-    Words must match EXACTLY and be in correct order.
+    PTE-oriented content scoring for Read Aloud:
+    - Primary: lexical coverage (words from prompt that were spoken, regardless of slight reorder)
+    - Secondary: sequence quality (penalize heavy disorder but avoid cascade penalty)
     """
     alignment = _compute_word_alignment_read_aloud(ref_words, hyp_words)
-    coverage = alignment["sequential_coverage"]
+    presence = alignment["presence_coverage"]
+    sequential = alignment["sequential_coverage"]
+
+    # Blend favors content coverage, then applies mild order sensitivity.
+    # This prevents one local mismatch from turning a long tail into all-red.
+    coverage = (0.75 * presence) + (0.25 * sequential)
+
+    # Extra penalty only when order collapses badly vs spoken coverage.
+    if presence >= 70 and sequential < 45:
+        coverage -= 8
+    elif presence >= 55 and sequential < 35:
+        coverage -= 5
+    coverage = max(0.0, min(100.0, coverage))
 
     if coverage >= 95:   return 5, coverage
     elif coverage >= 80: return 4, coverage
@@ -498,7 +511,7 @@ async def score_read_aloud(q: QuestionData, transcription: str, duration: float,
     clean_rec = _clean_text(transcription)
     ref_words, hyp_words = clean_ref.split(), clean_rec.split()
 
-    content_score, _ = _score_content_read_aloud(ref_words, hyp_words)
+    content_score, content_pct = _score_content_read_aloud(ref_words, hyp_words)
     pronunciation_score, _ = _score_pronunciation_read_aloud(ref_words, hyp_words, avg_logprob)
 
     wpm = _estimate_wpm(transcription, duration)
@@ -516,7 +529,10 @@ async def score_read_aloud(q: QuestionData, transcription: str, duration: float,
     else:                    max_fluency = 1
     fluency_score = min(fluency_score, max_fluency)
 
-    feedback_msg = "Scored."
+    feedback_msg = (
+        f"Scored (PTE-style): Content {content_score}/5 ({content_pct:.0f}% coverage), "
+        f"Pronunciation {pronunciation_score}/5, Oral Fluency {fluency_score}/5."
+    )
     if audio_buffer:
         pause_count = _count_mid_speech_pauses(audio_buffer, pause_threshold_sec=2.0)
         if pause_count > 0:

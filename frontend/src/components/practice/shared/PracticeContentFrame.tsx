@@ -26,9 +26,9 @@ export function PracticeContentFrame({
   children: React.ReactNode;
   className?: string;
 }) {
+  void stepHint;
   return (
     <div className={clsx("practice-flow-root", className)}>
-      {stepHint ? <PracticeStepHint>{stepHint}</PracticeStepHint> : null}
       <div className="practice-flow-stack space-y-4 sm:space-y-5 w-full">{children}</div>
     </div>
   );

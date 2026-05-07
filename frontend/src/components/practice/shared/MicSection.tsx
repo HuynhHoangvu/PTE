@@ -8,6 +8,58 @@ import { useRecorder } from "../../../hooks/useRecorder";
 import { attemptsApi } from "../../../api";
 import { WordComparison } from "./WordComparison";
 
+function TranscriptPreview({
+  transcription,
+  wordErrors,
+}: {
+  transcription: string;
+  wordErrors: Array<{ word: string }>;
+}) {
+  const stems = new Set(
+    (wordErrors || [])
+      .map((w) => String(w.word || "").toLowerCase().replace(/[^a-z0-9']/g, ""))
+      .filter(Boolean),
+  );
+  const tokens = transcription.split(/(\s+)/);
+
+  return (
+    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+      <div className="px-4 py-3 border-b border-gray-50 flex items-center gap-2">
+        <span className="text-base">📝</span>
+        <p className="font-bold text-sm text-gray-900">Bản ghi âm</p>
+        {stems.size > 0 && (
+          <span className="text-[10px] text-red-500 font-medium">
+            ({stems.size} từ cần sửa)
+          </span>
+        )}
+      </div>
+      <div className="px-4 py-4 bg-gray-50">
+        <p className="text-sm text-gray-700 leading-relaxed">
+          {tokens.map((token, i) => {
+            const t = token.trim();
+            if (!t) return <span key={i}>{token}</span>;
+            const stem = t
+              .replace(/^[^\w]+|[^\w]+$/g, "")
+              .toLowerCase()
+              .replace(/[^a-z0-9']/g, "");
+            const hasErr = stem ? stems.has(stem) : false;
+            return hasErr ? (
+              <span
+                key={i}
+                className="inline-flex items-center bg-red-100 text-red-700 border-b-2 border-red-400 rounded px-0.5 mx-0.5 font-semibold"
+              >
+                {t}
+              </span>
+            ) : (
+              <span key={i}>{token}</span>
+            );
+          })}
+        </p>
+      </div>
+    </div>
+  );
+}
+
 export interface MicSectionProps {
   questionId: string;
   prepSeconds?: number;
@@ -200,6 +252,13 @@ export function MicSection({
       {scoreResult && (
         <div className="mt-4 space-y-3">
           {scoreResult.transcription &&
+            scoreResult.status === "SCORED" && (
+              <TranscriptPreview
+                transcription={scoreResult.transcription}
+                wordErrors={scoreResult.wordErrors || []}
+              />
+            )}
+          {scoreResult.transcription &&
             scoreResult.status === "SCORED" &&
             wordComparisonStatus === "enabled" &&
             originalText && (
@@ -232,6 +291,7 @@ export function MicSection({
               transcription={scoreResult.transcription}
               wordErrors={scoreResult.wordErrors || []}
               mode="speaking"
+              showTranscriptSection={false}
             />
           )}
           {scoreResult.status === "SCORED" && showSuggestedAfterScore && suggestedAnswer && (
