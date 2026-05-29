@@ -2,7 +2,7 @@ import 'reflect-metadata';
 import { DataSource } from 'typeorm';
 import * as dotenv from 'dotenv';
 import { join } from 'path';
-import * as bcrypt from 'bcrypt';
+import * as bcrypt from 'bcryptjs';
 import { Question, QuestionSkill, QuestionType, QuestionLevel } from '../questions/question.entity';
 import { User, UserPlan } from '../users/user.entity';
 

@@ -5,7 +5,7 @@ import {
 import { AuthGuard } from '@nestjs/passport';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Like, DataSource } from 'typeorm';
-import * as bcrypt from 'bcrypt';
+import * as bcrypt from 'bcryptjs';
 import { User, UserPlan, UserRole } from '../users/user.entity';
 import { MockTest, MockTestAttempt, MockTestAttemptStatus } from '../mock-test/mock-test.entity';
 import { Attempt } from '../attempts/attempt.entity';
