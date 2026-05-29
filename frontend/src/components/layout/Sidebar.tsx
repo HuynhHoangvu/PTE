@@ -232,7 +232,7 @@ export function Sidebar({
 
           <SectionLabel>Thi và nâng cao</SectionLabel>
           {BOTTOM_NAV.map((n) => {
-            if (n.to === "/admin" && user?.role !== "admin") return null;
+            if (n.to === "/admin" && user?.role !== "admin" && user?.role !== "teacher") return null;
             return <NavItem key={n.to} {...n} onNavClick={onClose} />;
           })}
         </div>

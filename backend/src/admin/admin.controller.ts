@@ -1,12 +1,13 @@
 import {
   Controller, Get, Patch, Param, Body, UseGuards, Request,
-  ForbiddenException, NotFoundException, Query,
+  ForbiddenException, NotFoundException, Query, Post, Delete,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Like, DataSource } from 'typeorm';
+import * as bcrypt from 'bcrypt';
 import { User, UserPlan, UserRole } from '../users/user.entity';
-import { MockTestAttempt, MockTestAttemptStatus } from '../mock-test/mock-test.entity';
+import { MockTest, MockTestAttempt, MockTestAttemptStatus } from '../mock-test/mock-test.entity';
 import { Attempt } from '../attempts/attempt.entity';
 import { Question } from '../questions/question.entity';
 
@@ -14,6 +15,8 @@ class UpdateUserDto {
   plan?: UserPlan;
   role?: UserRole;
   fullName?: string;
+  isActive?: boolean;
+  password?: string;
 }
 
 @Controller('admin')
@@ -21,6 +24,7 @@ class UpdateUserDto {
 export class AdminController {
   constructor(
     @InjectRepository(User) private userRepo: Repository<User>,
+    @InjectRepository(MockTest) private mockTestRepo: Repository<MockTest>,
     @InjectRepository(MockTestAttempt) private mockAttemptRepo: Repository<MockTestAttempt>,
     @InjectRepository(Attempt) private attemptRepo: Repository<Attempt>,
     @InjectRepository(Question) private questionRepo: Repository<Question>,
@@ -28,7 +32,9 @@ export class AdminController {
   ) {}
 
   private checkAdmin(req: any) {
-    if (req.user.role !== UserRole.ADMIN) throw new ForbiddenException('Admin only');
+    if (req.user.role !== UserRole.ADMIN && req.user.role !== UserRole.TEACHER) {
+      throw new ForbiddenException('Admin or Teacher only');
+    }
   }
 
   @Get('users')
@@ -43,7 +49,7 @@ export class AdminController {
     const skip = (parseInt(page) - 1) * take;
 
     const listOpts = {
-      select: ['id', 'email', 'fullName', 'plan', 'role', 'streakDays', 'totalAttempts', 'averageScore', 'createdAt', 'lastActiveAt', 'loginCount', 'lastLoginAt'] as (keyof User)[],
+      select: ['id', 'email', 'fullName', 'plan', 'role', 'streakDays', 'totalAttempts', 'averageScore', 'createdAt', 'lastActiveAt', 'loginCount', 'lastLoginAt', 'isActive'] as (keyof User)[],
       order: { createdAt: 'DESC' as const },
       take,
       skip,
@@ -64,7 +70,7 @@ export class AdminController {
     this.checkAdmin(req);
     const user = await this.userRepo.findOne({
       where: { id },
-      select: ['id', 'email', 'fullName', 'plan', 'role', 'streakDays', 'totalAttempts', 'averageScore', 'createdAt', 'lastActiveAt', 'loginCount', 'lastLoginAt'],
+      select: ['id', 'email', 'fullName', 'plan', 'role', 'streakDays', 'totalAttempts', 'averageScore', 'createdAt', 'lastActiveAt', 'loginCount', 'lastLoginAt', 'isActive'],
     });
     if (!user) throw new NotFoundException('User not found');
     return user;
@@ -79,6 +85,10 @@ export class AdminController {
     if (dto.plan !== undefined) user.plan = dto.plan;
     if (dto.role !== undefined) user.role = dto.role;
     if (dto.fullName !== undefined) user.fullName = dto.fullName;
+    if (dto.isActive !== undefined) user.isActive = dto.isActive;
+    if (dto.password !== undefined && dto.password.trim() !== '') {
+      user.password = await bcrypt.hash(dto.password, 10);
+    }
 
     await this.userRepo.save(user);
     const { password, ...rest } = user as any;
@@ -266,7 +276,7 @@ export class AdminController {
     const [rows, countResult]: [any[], any[]] = await Promise.all([
       this.dataSource.query(`
         SELECT
-          u.id, u.email, u."fullName", u.plan, u.role,
+          u.id, u.email, u."fullName", u.plan, u.role, u."isActive",
           u."createdAt" AS created_at,
           u."loginCount" AS login_count,
           u."lastLoginAt" AS last_login_at,
@@ -331,6 +341,7 @@ export class AdminController {
         fullName: r.fullName || null,
         plan: r.plan,
         role: r.role,
+        isActive: r.isActive,
         createdAt: r.created_at,
         lastActiveAt: r.last_active,
         loginCount: r.login_count != null ? Number(r.login_count) : 0,
@@ -358,7 +369,7 @@ export class AdminController {
     this.checkAdmin(req);
     const user = await this.userRepo.findOne({
       where: { id },
-      select: ['id', 'email', 'fullName', 'plan', 'role', 'createdAt', 'loginCount', 'lastLoginAt'],
+      select: ['id', 'email', 'fullName', 'plan', 'role', 'createdAt', 'loginCount', 'lastLoginAt', 'isActive'],
     });
     if (!user) throw new NotFoundException('User not found');
 
@@ -436,5 +447,51 @@ export class AdminController {
         testCode: r.test_code, testTitle: r.test_title,
       })),
     };
+  }
+
+  // ── Mock Test CRUD ────────────────────────────────────────────────────────
+  @Get('mock-tests')
+  async listMockTests(@Request() req) {
+    this.checkAdmin(req);
+    return this.mockTestRepo.find({ order: { code: 'ASC' } });
+  }
+
+  @Post('mock-tests')
+  async createMockTest(@Request() req, @Body() body: any) {
+    this.checkAdmin(req);
+    const mt = this.mockTestRepo.create(body);
+    return this.mockTestRepo.save(mt);
+  }
+
+  @Patch('mock-tests/:id')
+  async updateMockTest(@Request() req, @Param('id') id: string, @Body() body: any) {
+    this.checkAdmin(req);
+    await this.mockTestRepo.update(id, body);
+    return this.mockTestRepo.findOne({ where: { id } });
+  }
+
+  @Delete('mock-tests/:id')
+  async deleteMockTest(@Request() req, @Param('id') id: string) {
+    this.checkAdmin(req);
+    await this.mockTestRepo.delete(id);
+    return { success: true };
+  }
+
+  // ── Mock Attempt manual score override ──────────────────────────────────────
+  @Patch('mock-attempts/:id/score')
+  async overrideAttemptScore(
+    @Request() req,
+    @Param('id') id: string,
+    @Body() body: { totalScore: number; sectionScores?: any },
+  ) {
+    this.checkAdmin(req);
+    const attempt = await this.mockAttemptRepo.findOne({ where: { id } });
+    if (!attempt) throw new NotFoundException('Attempt not found');
+    attempt.totalScore = body.totalScore;
+    if (body.sectionScores) {
+      attempt.sectionScores = body.sectionScores;
+    }
+    await this.mockAttemptRepo.save(attempt);
+    return attempt;
   }
 }

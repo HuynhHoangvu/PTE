@@ -56,7 +56,7 @@ export interface User {
   email: string;
   fullName: string;
   plan: 'free' | 'premium';
-  role?: 'admin' | 'user';
+  role?: 'admin' | 'user' | 'teacher';
   avatarUrl?: string;
   streakDays: number;
   totalAttempts: number;

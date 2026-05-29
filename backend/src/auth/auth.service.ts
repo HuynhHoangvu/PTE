@@ -62,6 +62,9 @@ export class AuthService {
   async login(dto: LoginDto) {
     const user = await this.userRepo.findOne({ where: { email: dto.email } });
     if (!user) throw new UnauthorizedException('Invalid credentials');
+    if (user.isActive === false) {
+      throw new UnauthorizedException('Tài khoản của bạn đã bị khóa hoặc ngừng cấp quyền.');
+    }
     if (!user.password) {
       throw new UnauthorizedException('Tài khoản này chỉ đăng nhập bằng Google');
     }
@@ -79,6 +82,9 @@ export class AuthService {
   async getMe(userId: string) {
     const user = await this.userRepo.findOne({ where: { id: userId } });
     if (!user) throw new UnauthorizedException();
+    if (user.isActive === false) {
+      throw new UnauthorizedException('Tài khoản của bạn đã bị khóa hoặc ngừng cấp quyền.');
+    }
     const { password, ...rest } = user;
     return rest;
   }
@@ -114,6 +120,9 @@ export class AuthService {
     }
 
     if (user) {
+      if (user.isActive === false) {
+        throw new UnauthorizedException('Tài khoản của bạn đã bị khóa hoặc ngừng cấp quyền.');
+      }
       if (user.googleId && user.googleId !== sub) {
         throw new ConflictException('Email đã gắn với tài khoản Google khác');
       }
@@ -134,6 +143,9 @@ export class AuthService {
 
     const fresh = await this.userRepo.findOne({ where: { id: user.id } });
     if (!fresh) throw new UnauthorizedException();
+    if (fresh.isActive === false) {
+      throw new UnauthorizedException('Tài khoản của bạn đã bị khóa hoặc ngừng cấp quyền.');
+    }
     const token = this.jwtService.sign({ sub: fresh.id, email: fresh.email });
     const { password, ...userWithoutPassword } = fresh;
     return { user: userWithoutPassword, token };

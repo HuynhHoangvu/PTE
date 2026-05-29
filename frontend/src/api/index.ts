@@ -146,7 +146,7 @@ export const adminApi = {
   listUsers: (params?: { search?: string; page?: number; limit?: number }) =>
     api.get('/admin/users', { params }).then((r) => r.data),
   getUser: (id: string) => api.get(`/admin/users/${id}`).then((r) => r.data),
-  updateUser: (id: string, data: { plan?: string; role?: string; fullName?: string }) =>
+  updateUser: (id: string, data: { plan?: string; role?: string; fullName?: string; isActive?: boolean; password?: string }) =>
     api.patch(`/admin/users/${id}`, data).then((r) => r.data),
   getUserMockTests: (id: string) =>
     api.get(`/admin/users/${id}/mock-tests`).then((r) => r.data),
@@ -158,6 +158,14 @@ export const adminApi = {
     skill?: string; plan?: string; activeIn?: string;
   }) => api.get('/admin/analytics/users', { params }).then((r) => r.data),
   getUserActivity: (id: string) => api.get(`/admin/analytics/users/${id}`).then((r) => r.data),
+  // Mock Tests Admin CRUD
+  listMockTests: () => api.get('/admin/mock-tests').then((r) => r.data),
+  createMockTest: (data: any) => api.post('/admin/mock-tests', data).then((r) => r.data),
+  updateMockTest: (id: string, data: any) => api.patch(`/admin/mock-tests/${id}`, data).then((r) => r.data),
+  deleteMockTest: (id: string) => api.delete(`/admin/mock-tests/${id}`).then((r) => r.data),
+  // Manual score override
+  overrideAttemptScore: (attemptId: string, data: { totalScore: number; sectionScores?: any }) =>
+    api.patch(`/admin/mock-attempts/${attemptId}/score`, data).then((r) => r.data),
 };
 
 export default api;

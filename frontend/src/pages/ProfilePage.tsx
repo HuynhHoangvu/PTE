@@ -51,6 +51,7 @@ export default function ProfilePage() {
   };
 
   const myRank = leaderboard?.findIndex((u: any) => u.id === (profile?.id || user?.id));
+  const isAdminOrTeacher = user?.role === 'admin' || user?.role === 'teacher';
 
   return (
     <MainLayout>
@@ -128,127 +129,149 @@ export default function ProfilePage() {
                 )}
               </div>
 
-              {/* Score */}
-              <div className="text-center flex-shrink-0">
-                <div className="bg-brand-black rounded-2xl px-6 py-4">
-                  <p className="text-[9px] font-black uppercase tracking-widest text-gray-500 mb-1">Điểm TB</p>
-                  <p className="font-display font-black text-4xl text-brand-yellow leading-none">
-                    {Math.round(stats?.avgScore || 0)}
-                  </p>
-                  <p className="text-[10px] text-gray-500 mt-1">/ 90 điểm</p>
+              {/* Score - Only show for normal users */}
+              {!isAdminOrTeacher && (
+                <div className="text-center flex-shrink-0">
+                  <div className="bg-brand-black rounded-2xl px-6 py-4">
+                    <p className="text-[9px] font-black uppercase tracking-widest text-gray-500 mb-1">Điểm TB</p>
+                    <p className="font-display font-black text-4xl text-brand-yellow leading-none">
+                      {Math.round(stats?.avgScore || 0)}
+                    </p>
+                    <p className="text-[10px] text-gray-500 mt-1">/ 90 điểm</p>
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
           </div>
 
-          {/* Stats Grid */}
-          <div className="grid grid-cols-2 gap-4">
-            {[
-              { label: 'Tổng câu đã làm', value: stats?.totalAttempts || 0, icon: '📝' },
-              { label: 'Streak hiện tại', value: `${profile?.streakDays || 0} ngày`, icon: '🔥' },
-            ].map((s) => (
-              <div key={s.label} className="card p-5 flex items-center gap-4">
-                <div className="w-12 h-12 bg-brand-yellow-light rounded-xl flex items-center justify-center text-2xl">
-                  {s.icon}
-                </div>
-                <div>
-                  <p className="text-xs text-gray-400 font-semibold">{s.label}</p>
-                  <p className="font-display font-black text-2xl text-gray-900">{s.value}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* Per-Skill Stats */}
-          {stats?.skillStats && (
+          {/* Admin Info Section */}
+          {isAdminOrTeacher && (
             <div className="card p-6">
-              <h3 className="font-display font-black text-base mb-4">Thống kê theo kỹ năng</h3>
+              <h3 className="font-display font-black text-base mb-4">Thông tin Quản trị viên</h3>
               <div className="space-y-4">
-                {Object.entries(stats.skillStats).map(([skill, data]: [string, any]) => {
-                  const avg = Math.round(data.avgScore || 0);
-                  const pct = Math.round((avg / 90) * 100);
-                  return (
-                    <div key={skill}>
-                      <div className="flex justify-between items-center mb-1.5">
-                        <span className="text-sm font-bold text-gray-700">{skillLabels[skill] || skill}</span>
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs text-gray-400">{data.count} câu</span>
-                          <span className="text-sm font-black text-brand-orange">{avg}/90</span>
-                        </div>
-                      </div>
-                      <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                        <div
-                          className="h-full bg-gradient-to-r from-brand-yellow to-brand-orange rounded-full transition-all duration-500"
-                          style={{ width: `${pct}%` }}
-                        />
-                      </div>
-                    </div>
-                  );
-                })}
+                <p className="text-sm text-gray-600">
+                  Tài khoản của bạn được cấp quyền <strong>{user?.role === 'admin' ? 'Quản trị viên tối cao (Admin)' : 'Giáo viên (Teacher)'}</strong>. 
+                  Bạn có quyền truy cập vào Trang quản trị để quản lý câu hỏi, người dùng và các kỳ thi thử.
+                </p>
+                <Button variant="yellow" onClick={() => window.location.href = '/admin'}>
+                  Truy cập Trang Quản Trị
+                </Button>
               </div>
             </div>
           )}
 
-          {/* Recent Attempts */}
-          {stats?.recentAttempts && stats.recentAttempts.length > 0 && (
-            <div className="card overflow-hidden">
-              <div className="px-5 py-3.5 border-b border-gray-100">
-                <h3 className="font-display font-black text-sm">Lịch sử gần đây</h3>
+          {/* Stats Grid - Only show for normal users */}
+          {!isAdminOrTeacher && (
+            <>
+              <div className="grid grid-cols-2 gap-4">
+                {[
+                  { label: 'Tổng câu đã làm', value: stats?.totalAttempts || 0, icon: '📝' },
+                  { label: 'Streak hiện tại', value: `${profile?.streakDays || 0} ngày`, icon: '🔥' },
+                ].map((s) => (
+                  <div key={s.label} className="card p-5 flex items-center gap-4">
+                    <div className="w-12 h-12 bg-brand-yellow-light rounded-xl flex items-center justify-center text-2xl">
+                      {s.icon}
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-400 font-semibold">{s.label}</p>
+                      <p className="font-display font-black text-2xl text-gray-900">{s.value}</p>
+                    </div>
+                  </div>
+                ))}
               </div>
-              {stats.recentAttempts.map((a: any) => (
-                <div key={a.id} className="flex items-center gap-3 px-5 py-3 border-b border-gray-50 hover:bg-gray-50">
-                  <div className="w-8 h-8 bg-brand-yellow-light rounded-lg flex items-center justify-center text-sm flex-shrink-0">
-                    {a.skill === 'SPEAKING' ? '🎙️' : a.skill === 'WRITING' ? '✍️' : a.skill === 'READING' ? '📖' : '🎧'}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-bold text-gray-800 truncate">{a.questionCode}</p>
-                    <p className="text-[10px] text-gray-400">{a.questionType?.replace(/_/g, ' ')}</p>
-                  </div>
-                  <div className="text-right flex-shrink-0">
-                    <p className="text-sm font-black text-brand-orange">{a.score || '-'}</p>
-                    <p className="text-[10px] text-gray-400">{new Date(a.createdAt).toLocaleDateString('vi-VN')}</p>
+
+              {/* Per-Skill Stats */}
+              {stats?.skillStats && (
+                <div className="card p-6">
+                  <h3 className="font-display font-black text-base mb-4">Thống kê theo kỹ năng</h3>
+                  <div className="space-y-4">
+                    {Object.entries(stats.skillStats).map(([skill, data]: [string, any]) => {
+                      const avg = Math.round(data.avgScore || 0);
+                      const pct = Math.round((avg / 90) * 100);
+                      return (
+                        <div key={skill}>
+                          <div className="flex justify-between items-center mb-1.5">
+                            <span className="text-sm font-bold text-gray-700">{skillLabels[skill] || skill}</span>
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs text-gray-400">{data.count} câu</span>
+                              <span className="text-sm font-black text-brand-orange">{avg}/90</span>
+                            </div>
+                          </div>
+                          <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                            <div
+                              className="h-full bg-gradient-to-r from-brand-yellow to-brand-orange rounded-full transition-all duration-500"
+                              style={{ width: `${pct}%` }}
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
-              ))}
-            </div>
-          )}
+              )}
 
-          {/* Leaderboard */}
-          {leaderboard && leaderboard.length > 0 && (
-            <div className="card overflow-hidden">
-              <div className="px-5 py-3.5 border-b border-gray-100 flex items-center justify-between">
-                <h3 className="font-display font-black text-sm">🏆 Bảng xếp hạng</h3>
-                <span className="text-[10px] text-gray-400">Top {leaderboard.length} người dùng</span>
-              </div>
-              {leaderboard.slice(0, 10).map((u: any, idx: number) => {
-                const isMe = u.id === (profile?.id || user?.id);
-                return (
-                  <div key={u.id} className={clsx(
-                    'flex items-center gap-3 px-5 py-3 border-b border-gray-50',
-                    isMe ? 'bg-brand-yellow-soft border-brand-yellow/30' : 'hover:bg-gray-50'
-                  )}>
-                    <span className={clsx(
-                      'w-7 h-7 rounded-lg flex items-center justify-center text-xs font-black flex-shrink-0',
-                      idx === 0 ? 'bg-yellow-400 text-white' :
-                      idx === 1 ? 'bg-gray-300 text-gray-700' :
-                      idx === 2 ? 'bg-amber-600 text-white' : 'bg-gray-100 text-gray-500'
-                    )}>
-                      {idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : `#${idx + 1}`}
-                    </span>
-                    <div className="w-8 h-8 bg-brand-black rounded-lg flex items-center justify-center text-brand-yellow text-xs font-black flex-shrink-0">
-                      {u.fullName?.charAt(0)?.toUpperCase() || 'U'}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className={clsx('text-sm font-bold truncate', isMe ? 'text-brand-orange' : 'text-gray-800')}>
-                        {u.fullName} {isMe && '(bạn)'}
-                      </p>
-                      <p className="text-[10px] text-gray-400">{u.totalAttempts} câu · 🔥 {u.streakDays} ngày</p>
-                    </div>
-                    <span className="font-display font-black text-brand-orange">{Math.round(u.averageScore || 0)}/90</span>
+              {/* Recent Attempts */}
+              {stats?.recentAttempts && stats.recentAttempts.length > 0 && (
+                <div className="card overflow-hidden">
+                  <div className="px-5 py-3.5 border-b border-gray-100">
+                    <h3 className="font-display font-black text-sm">Lịch sử gần đây</h3>
                   </div>
-                );
-              })}
-            </div>
+                  {stats.recentAttempts.map((a: any) => (
+                    <div key={a.id} className="flex items-center gap-3 px-5 py-3 border-b border-gray-50 hover:bg-gray-50">
+                      <div className="w-8 h-8 bg-brand-yellow-light rounded-lg flex items-center justify-center text-sm flex-shrink-0">
+                        {a.skill === 'SPEAKING' ? '🎙️' : a.skill === 'WRITING' ? '✍️' : a.skill === 'READING' ? '📖' : '🎧'}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-bold text-gray-800 truncate">{a.questionCode}</p>
+                        <p className="text-[10px] text-gray-400">{a.questionType?.replace(/_/g, ' ')}</p>
+                      </div>
+                      <div className="text-right flex-shrink-0">
+                        <p className="text-sm font-black text-brand-orange">{a.score || '-'}</p>
+                        <p className="text-[10px] text-gray-400">{new Date(a.createdAt).toLocaleDateString('vi-VN')}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Leaderboard */}
+              {leaderboard && leaderboard.length > 0 && (
+                <div className="card overflow-hidden">
+                  <div className="px-5 py-3.5 border-b border-gray-100 flex items-center justify-between">
+                    <h3 className="font-display font-black text-sm">🏆 Bảng xếp hạng</h3>
+                    <span className="text-[10px] text-gray-400">Top {leaderboard.length} người dùng</span>
+                  </div>
+                  {leaderboard.slice(0, 10).map((u: any, idx: number) => {
+                    const isMe = u.id === (profile?.id || user?.id);
+                    return (
+                      <div key={u.id} className={clsx(
+                        'flex items-center gap-3 px-5 py-3 border-b border-gray-50',
+                        isMe ? 'bg-brand-yellow-soft border-brand-yellow/30' : 'hover:bg-gray-50'
+                      )}>
+                        <span className={clsx(
+                          'w-7 h-7 rounded-lg flex items-center justify-center text-xs font-black flex-shrink-0',
+                          idx === 0 ? 'bg-yellow-400 text-white' :
+                          idx === 1 ? 'bg-gray-300 text-gray-700' :
+                          idx === 2 ? 'bg-amber-600 text-white' : 'bg-gray-100 text-gray-500'
+                        )}>
+                          {idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : `#${idx + 1}`}
+                        </span>
+                        <div className="w-8 h-8 bg-brand-black rounded-lg flex items-center justify-center text-brand-yellow text-xs font-black flex-shrink-0">
+                          {u.fullName?.charAt(0)?.toUpperCase() || 'U'}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className={clsx('text-sm font-bold truncate', isMe ? 'text-brand-orange' : 'text-gray-800')}>
+                            {u.fullName} {isMe && '(bạn)'}
+                          </p>
+                          <p className="text-[10px] text-gray-400">{u.totalAttempts} câu · 🔥 {u.streakDays} ngày</p>
+                        </div>
+                        <span className="font-display font-black text-brand-orange">{Math.round(u.averageScore || 0)}/90</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>

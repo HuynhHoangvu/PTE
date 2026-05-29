@@ -14,6 +14,7 @@ export enum UserPlan {
 export enum UserRole {
   USER = 'user',
   ADMIN = 'admin',
+  TEACHER = 'teacher',
 }
 
 @Entity('users')
@@ -40,6 +41,9 @@ export class User {
 
   @Column({ type: 'enum', enum: UserRole, default: UserRole.USER })
   role: UserRole;
+
+  @Column({ default: true })
+  isActive: boolean;
 
   @Column({ nullable: true })
   avatarUrl: string;
