@@ -49,8 +49,7 @@ workflows:
         script: |
           xcode-project build-ipa \
             --workspace "frontend/ios/App/App.xcworkspace" \
-            --scheme "App" \
-            --config "Release"
+            --scheme "App"
     artifacts:
       - build/ios/ipa/*.ipa
     publishing:
