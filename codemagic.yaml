@@ -27,29 +27,23 @@ workflows:
         script: |
           cd frontend
           npx cap sync ios
-      - name: Set up code signing (Chứng chỉ Apple)
+      - name: Set up code signing (Ký chứng chỉ Apple)
         script: |
-          # Kiểm tra xem các biến môi trường có bị trống hay không
-          if [ -z "$APP_STORE_CONNECT_ISSUER_ID" ] || [ -z "$APP_STORE_CONNECT_KEY_IDENTIFIER" ] || [ -z "$APP_STORE_CONNECT_PRIVATE_KEY" ] || [ -z "$APP_ID" ]; then
-            echo "❌ LỖI: Một hoặc nhiều biến môi trường trong nhóm 'apple_credentials' đang bị trống!"
-            echo "Hãy đảm bảo bạn đã tạo nhóm biến tên là 'apple_credentials' trên Codemagic và thêm đủ 4 biến sau:"
-            echo "1. APP_ID (ví dụ: com.flyedu.pte)"
-            echo "2. APP_STORE_CONNECT_ISSUER_ID"
-            echo "3. APP_STORE_CONNECT_KEY_IDENTIFIER"
-            echo "4. APP_STORE_CONNECT_PRIVATE_KEY"
-            exit 1
-          fi
-
+          # Khởi tạo keychain
           keychain initialize
-          # Tự động tải chứng chỉ và provisioning profile từ Apple Developer Portal
-          app-store-connect fetch-signing-files "$APP_ID" \
-            --issuer-id "$APP_STORE_CONNECT_ISSUER_ID" \
-            --key-id "$APP_STORE_CONNECT_KEY_IDENTIFIER" \
-            --private-key "$APP_STORE_CONNECT_PRIVATE_KEY" \
-            --create
-          keychain add-certificates
-      - name: Set up code signing settings in Xcode project
-        script: |
+
+          # Giải mã chứng chỉ .p12
+          mkdir -p ~/Library/MobileDevice/Certificates
+          echo "$CM_CERTIFICATE" | base64 --decode > ~/Library/MobileDevice/Certificates/ios_distribution.p12
+
+          # Giải mã Provisioning Profile
+          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+          echo "$CM_PROVISIONING_PROFILE" | base64 --decode > ~/Library/MobileDevice/Provisioning\ Profiles/Fly_PTE_App_Store_Profile.mobileprovision
+
+          # Nạp chứng chỉ vào keychain với mật khẩu là 123456
+          keychain add-certificates --password "123456"
+
+          # Áp dụng Provisioning Profile vào Xcode Project
           xcode-project use-profiles
       - name: Build IPA (File cài đặt iOS)
         script: |
@@ -61,7 +55,7 @@ workflows:
       - build/ios/ipa/*.ipa
     publishing:
       app_store_connect:
-        # Cấu hình tự động đẩy lên TestFlight của Apple bằng API Key
+        # Sử dụng API Key của tài khoản để upload trực tiếp lên TestFlight
         api_key: $APP_STORE_CONNECT_PRIVATE_KEY
         key_id: $APP_STORE_CONNECT_KEY_IDENTIFIER
         issuer_id: $APP_STORE_CONNECT_ISSUER_ID
