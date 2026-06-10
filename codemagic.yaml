@@ -16,7 +16,6 @@ workflows:
         - push
       branch_patterns:
         - pattern: main
-          target: true
     scripts:
       - name: Install dependencies
         script: |
