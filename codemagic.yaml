@@ -5,8 +5,6 @@ workflows:
     instance_type: mac_mini_m1
     environment:
       groups:
-        # Định nghĩa nhóm biến môi trường trên giao diện Codemagic:
-        # Gồm: APP_STORE_CONNECT_PRIVATE_KEY, APP_STORE_CONNECT_KEY_IDENTIFIER, APP_STORE_CONNECT_ISSUER_ID, APP_ID
         - apple_credentials
       node: latest
       xcode: latest
@@ -16,12 +14,6 @@ workflows:
         - push
       branch_patterns:
         - pattern: main
-    signing:
-      # Sử dụng tính năng ký tự động tích hợp của Codemagic thông qua Integrations
-      app_store_connect:
-        auth: integration
-        type: app_store
-        bundle_identifier: com.flyedu.pte
     scripts:
       - name: Install dependencies
         script: |
@@ -35,6 +27,30 @@ workflows:
         script: |
           cd frontend
           npx cap sync ios
+      - name: Set up code signing (Chứng chỉ Apple)
+        script: |
+          # Kiểm tra xem các biến môi trường có bị trống hay không
+          if [ -z "$APP_STORE_CONNECT_ISSUER_ID" ] || [ -z "$APP_STORE_CONNECT_KEY_IDENTIFIER" ] || [ -z "$APP_STORE_CONNECT_PRIVATE_KEY" ] || [ -z "$APP_ID" ]; then
+            echo "❌ LỖI: Một hoặc nhiều biến môi trường trong nhóm 'apple_credentials' đang bị trống!"
+            echo "Hãy đảm bảo bạn đã tạo nhóm biến tên là 'apple_credentials' trên Codemagic và thêm đủ 4 biến sau:"
+            echo "1. APP_ID (ví dụ: com.flyedu.pte)"
+            echo "2. APP_STORE_CONNECT_ISSUER_ID"
+            echo "3. APP_STORE_CONNECT_KEY_IDENTIFIER"
+            echo "4. APP_STORE_CONNECT_PRIVATE_KEY"
+            exit 1
+          fi
+
+          keychain initialize
+          # Tự động tải chứng chỉ và provisioning profile từ Apple Developer Portal
+          app-store-connect fetch-signing-files "$APP_ID" \
+            --issuer-id "$APP_STORE_CONNECT_ISSUER_ID" \
+            --key-id "$APP_STORE_CONNECT_KEY_IDENTIFIER" \
+            --private-key "$APP_STORE_CONNECT_PRIVATE_KEY" \
+            --create
+          keychain add-certificates
+      - name: Set up code signing settings in Xcode project
+        script: |
+          xcode-project use-profiles
       - name: Build IPA (File cài đặt iOS)
         script: |
           xcode-project build-ipa \
@@ -45,8 +61,10 @@ workflows:
       - build/ios/ipa/*.ipa
     publishing:
       app_store_connect:
-        # Sử dụng tài khoản App Store Connect đã liên kết trong Integrations
-        auth: integration
+        # Cấu hình tự động đẩy lên TestFlight của Apple bằng API Key
+        api_key: $APP_STORE_CONNECT_PRIVATE_KEY
+        key_id: $APP_STORE_CONNECT_KEY_IDENTIFIER
+        issuer_id: $APP_STORE_CONNECT_ISSUER_ID
         submit_to_testflight: true
         # Tự động gửi duyệt nếu muốn (mặc định là false để test trước qua TestFlight)
         submit_to_app_store: false
