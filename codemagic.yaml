@@ -31,9 +31,24 @@ workflows:
           npx cap sync ios
       - name: Set up code signing (Chứng chỉ Apple)
         script: |
+          # Kiểm tra xem các biến môi trường có bị trống hay không
+          if [ -z "$APP_STORE_CONNECT_ISSUER_ID" ] || [ -z "$APP_STORE_CONNECT_KEY_IDENTIFIER" ] || [ -z "$APP_STORE_CONNECT_PRIVATE_KEY" ] || [ -z "$APP_ID" ]; then
+            echo "❌ LỖI: Một hoặc nhiều biến môi trường trong nhóm 'apple_credentials' đang bị trống!"
+            echo "Hãy đảm bảo bạn đã tạo nhóm biến tên là 'apple_credentials' trên Codemagic và thêm đủ 4 biến sau:"
+            echo "1. APP_ID (ví dụ: com.flyedu.pte)"
+            echo "2. APP_STORE_CONNECT_ISSUER_ID"
+            echo "3. APP_STORE_CONNECT_KEY_IDENTIFIER"
+            echo "4. APP_STORE_CONNECT_PRIVATE_KEY"
+            exit 1
+          fi
+
           keychain initialize
           # Tự động tải chứng chỉ và provisioning profile từ Apple Developer Portal
-          app-store-connect fetch-signing-files "$APP_ID" --create
+          app-store-connect fetch-signing-files "$APP_ID" \
+            --issuer-id "$APP_STORE_CONNECT_ISSUER_ID" \
+            --key-id "$APP_STORE_CONNECT_KEY_IDENTIFIER" \
+            --private-key "$APP_STORE_CONNECT_PRIVATE_KEY" \
+            --create
           keychain add-certificates
       - name: Set up code signing settings in Xcode project
         script: |
