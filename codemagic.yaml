@@ -33,7 +33,7 @@ workflows:
         script: |
           keychain initialize
           # Tự động tải chứng chỉ và provisioning profile từ Apple Developer Portal
-          app-store-connect fetch-signing-files "$APP_ID" --project-type ios_app --create
+          app-store-connect fetch-signing-files "$APP_ID" --create
           keychain add-certificates
       - name: Set up code signing settings in Xcode project
         script: |
