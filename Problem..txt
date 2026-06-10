@@ -1,0 +1,218 @@
+Dựa trên phân tích code, tôi sẽ đưa ra tổng quan về bảo mật và khả năng mở rộng của hệ thống hiện tại:
+
+  ---
+
+  📊 TỔNG QUAN HỆ THỐNG
+
+  Công nghệ sử dụng:
+  - Backend: NestJS + TypeORM + PostgreSQL
+  - Frontend: React + Vite + Capacitor (Mobile app)
+  - AI Scoring: Python FastAPI + Gemini API
+  - Auth: JWT + Google OAuth
+
+  ---
+
+  🔴 VẤN ĐỀ BẢO MẬT NGHIÊM TRỌNG
+
+
+  ┌───┬──────────────────────────────────┬────────┬──────────────────────────────────────────────────────────────────────┐
+  │ # │ Vấn đề                           │ Mức độ │ Mô tả                                                                │
+  ├───┼──────────────────────────────────┼────────┼──────────────────────────────────────────────────────────────────────┤
+  │ 1 │ JWT Secret yếu                   │ 🔴 CAO │ JWT_SECRET trong docker-compose là giá trị mặc định, dễ đoán         │
+  │ 2 │ Không có Rate Limiting           │ 🔴 CAO │ Không có throttle/rate limit → Dễ bị brute force, DDoS               │
+  │ 3 │ CORS quá rộng                    │ 🟠 TB  │ Cho phép capacitor://localhost, http://localhost - có thể bị exploit │
+  │ 4 │ Không có Helmet/Security Headers │ 🟠 TB  │ Thiếu các header bảo mật (XSS, CSRF, Clickjacking)                   │
+  │ 5 │ Swagger public trong production  │ 🟠 TB  │ API docs exposed tại /api/docs - lộ cấu trúc API                     │
+  │ 6 │ Không có input sanitization      │ 🟠 TB  │ Có thể bị SQL injection (dù TypeORM bảo vệ phần nào)                 │
+  │ 7 │ File upload không validate       │ 🟠 TB  │ Audio upload không kiểm tra kích thước, loại file                    │
+  │ 8 │ Password trong DB                │ 🟢 OK  │ Đã hash với bcrypt ✓                                                 │
+  └───┴──────────────────────────────────┴────────┴──────────────────────────────────────────────────────────────────────┘
+
+  ---
+
+  🔴 VẤN ĐỀ SCALABILITY (10,000 USERS)
+
+  Kiến trúc hiện tại:
+
+   1 ┌─────────────┐     ┌─────────────┐     ┌─────────────┐
+   2 │   Frontend  │────▶│   Backend   │────▶│  PostgreSQL │
+   3 │  (1 container)│     │ (1 container)│     │ (1 container)│
+   4 └─────────────┘     └─────────────┘     └─────────────┘
+   5                             │
+   6                             ▼
+   7                     ┌─────────────┐
+   8                     │Python Scorer│
+   9                     │ (1 container)│
+  10                     └─────────────┘
+
+  Vấn đề khi 10,000 users đồng thời:
+
+
+  ┌───┬────────────────────────────┬────────┬────────────────────────────────────────────────────────────┐
+  │ # │ Vấn đề                     │ Mức độ │ Hậu quả                                                    │
+  ├───┼────────────────────────────┼────────┼────────────────────────────────────────────────────────────┤
+  │ 1 │ Single Node Backend        │ 🔴 CAO │ 1 NestJS instance → ~100-500 req/s, không đủ cho 10K users │
+  │ 2 │ Database Connection Pool   │ 🔴 CAO │ Không cấu hình pool → Connection timeout, crash            │
+  │ 3 │ Không có Load Balancer     │ 🔴 CAO │ Không thể scale horizontal                                 │
+  │ 4 │ Không có Redis Cache       │ 🔴 CAO │ Mọi request đều hit DB → DB overload                       │
+  │ 5 │ File storage local         │ 🟠 TB  │ Uploads lưu local → Không sync giữa instances              │
+  │ 6 │ AI Scoring single instance │ 🟠 TB  │ Python scorer 1 instance → Bottleneck khi chấm điểm        │
+  │ 7 │ Không có CDN               │ 🟠 TB  │ Static assets serve từ backend → Bandwidth cao             │
+  │ 8 │ Không có Queue             │ 🟠 TB  │ AI scoring đồng bộ → Block request                         │
+  └───┴────────────────────────────┴────────┴────────────────────────────────────────────────────────────┘
+
+
+  Ước tính tải:
+  1 10,000 users đồng thời
+  2 → ~5,000-8,000 requests/giây (peak)
+  3 → Backend hiện tại: ~100-500 req/s
+  4 → THIẾU 10-50x capacity!
+
+  ---
+
+  ✅ GIẢI PHÁP ĐỀ XUẤT
+
+  1. Bảo mật (Priority: CAO)
+
+  1 // Cài đặt các package cần thiết
+  2 npm install @nestjs/throttler helmet rate-limiter-flexible
+
+  a) Thêm Rate Limiting:
+
+   1 // app.module.ts
+   2 import { ThrottlerModule } from '@nestjs/throttler';
+   3 
+   4 @Module({
+   5   imports: [
+   6     ThrottlerModule.forRoot([{
+   7       ttl: 60000,    // 1 phút
+   8       limit: 100,    // 100 requests/phút
+   9     }]),
+  10   ],
+  11 })
+
+  b) Thêm Security Headers:
+
+  1 // main.ts
+  2 import helmet from 'helmet';
+  3 app.use(helmet());
+
+  c) Cấu hình JWT mạnh:
+
+  1 // .env production
+  2 JWT_SECRET=<random-256-bit-string>
+  3 JWT_EXPIRES_IN=15m  // Access token ngắn
+  4 REFRESH_TOKEN_EXPIRES_IN=7d
+
+  d) Disable Swagger trong production:
+
+  1 if (process.env.NODE_ENV !== 'production') {
+  2   SwaggerModule.setup('api/docs', app, document);
+  3 }
+
+  ---
+
+  2. Scalability (Priority: CAO)
+
+  Kiến trúc đề xuất:
+
+   1                     ┌──────────────┐
+   2                     │ Load Balancer│
+   3                     │   (Nginx)    │
+   4                     └──────┬───────┘
+   5            ┌───────────────┼───────────────┐
+   6            ▼               ▼               ▼
+   7     ┌─────────────┐ ┌─────────────┐ ┌─────────────┐
+   8     │  Backend 1  │ │  Backend 2  │ │  Backend N  │
+   9     └──────┬──────┘ └──────┬──────┘ └──────┬──────┘
+  10            │               │               │
+  11            └───────────────┼───────────────┘
+  12                            ▼
+  13                    ┌───────────────┐
+  14                    │     Redis     │
+  15                    │  (Cache/Queue)│
+  16                    └───────┬───────┘
+  17                            ▼
+  18                    ┌───────────────┐
+  19                    │  PostgreSQL   │
+  20                    │  (Primary +   │
+  21                    │   Replicas)   │
+  22                    └───────────────┘
+
+  a) Database Connection Pool:
+
+   1 // app.module.ts
+   2 TypeOrmModule.forRoot({
+   3   type: 'postgres',
+   4   // ...existing config
+   5   poolSize: 20,           // Connection pool
+   6   extra: {
+   7     max: 50,
+   8     idleTimeoutMillis: 30000,
+   9   },
+  10 })
+
+  b) Thêm Redis Cache:
+
+  1 npm install @nestjs/cache-manager cache-manager-redis-store
+  2 
+  3 // Cache frequently accessed data
+  4 @CacheKey('questions_list')
+  5 @CacheTTL(300) // 5 phút
+  6 async getQuestions() { ... }
+
+  c) Queue cho AI Scoring:
+
+  1 npm install @nestjs/bull bull
+  2 
+  3 // Đẩy AI scoring vào queue, không block request
+  4 @Process('score-audio')
+  5 async scoreAudio(job: Job) {
+  6   // Process in background
+  7 }
+
+  d) Horizontal Scaling với PM2/Kubernetes:
+
+  1 # kubernetes deployment
+  2 replicas: 5  # 5 backend instances
+
+  ---
+
+  3. File Storage (S3/Cloud Storage)
+
+  1 // Thay vì lưu local, dùng AWS S3 hoặc Cloudflare R2
+  2 npm install @aws-sdk/client-s3
+
+  ---
+
+  4. Monitoring & Logging
+
+   1 npm install @nestjs/terminus
+   2 
+   3 // Health checks
+   4 @Get('health')
+   5 healthCheck() {
+   6   return this.health.check([
+   7     () => this.db.pingCheck('database'),
+   8     () => this.redis.pingCheck('redis'),
+   9   ]);
+  10 }
+
+  ---
+
+  📋 ROADMAP ƯU TIÊN
+
+
+  ┌─────────────┬───────────────────────────────────────────────────────┬───────────┐
+  │ Giai đoạn   │ Công việc                                             │ Thời gian │
+  ├─────────────┼───────────────────────────────────────────────────────┼───────────┤
+  │ Giai đoạn 1 │ Rate limiting, Helmet, JWT mạnh, Disable Swagger prod │ 1-2 ngày  │
+  │ Giai đoạn 2 │ DB Connection Pool, Redis Cache                       │ 2-3 ngày  │
+  │ Giai đoạn 3 │ Queue cho AI Scoring, S3 Storage                      │ 3-5 ngày  │
+  │ Giai đoạn 4 │ Load Balancer, Horizontal Scaling, Kubernetes         │ 1-2 tuần  │
+  │ Giai đoạn 5 │ Monitoring, Logging, Alerting                         │ 3-5 ngày  │
+  └─────────────┴───────────────────────────────────────────────────────┴───────────┘
+
+  ---
+
+  Bạn muốn tôi triển khai giải pháp nào trước? Tôi khuyến nghị bắt đầu với Giai đoạn 1 (Bảo mật cơ bản) vì có thể implement nhanh và hiệu quả ngay lập tức.

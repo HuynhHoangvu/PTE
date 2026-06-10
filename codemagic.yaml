@@ -1,0 +1,58 @@
+workflows:
+  ios-release:
+    name: iOS Release Build & Publish
+    max_build_duration: 60
+    instance_type: mac_mini_m1
+    environment:
+      groups:
+        # Định nghĩa nhóm biến môi trường trên giao diện Codemagic:
+        # Gồm: APP_STORE_CONNECT_PRIVATE_KEY, APP_STORE_CONNECT_KEY_IDENTIFIER, APP_STORE_CONNECT_ISSUER_ID, APP_ID
+        - apple_credentials
+      node: latest
+      xcode: latest
+      cocoapods: default
+    triggering:
+      events:
+        - push
+      branch_patterns:
+        - pattern: main
+          target: true
+    scripts:
+      - name: Install dependencies
+        script: |
+          cd frontend
+          npm install
+      - name: Build web app
+        script: |
+          cd frontend
+          npm run build
+      - name: Capacitor Sync
+        script: |
+          cd frontend
+          npx cap sync ios
+      - name: Set up code signing (Chứng chỉ Apple)
+        script: |
+          keychain initialize
+          # Tự động tải chứng chỉ và provisioning profile từ Apple Developer Portal
+          app-store-connect fetch-signing-files "$APP_ID" --project-type ios_app --create
+          keychain add-certificates
+      - name: Set up code signing settings in Xcode project
+        script: |
+          xcode-project use-profiles
+      - name: Build IPA (File cài đặt iOS)
+        script: |
+          xcode-project build-ipa \
+            --workspace "frontend/ios/App/App.xcworkspace" \
+            --scheme "App" \
+            --configuration "Release"
+    artifacts:
+      - build/ios/ipa/*.ipa
+    publishing:
+      app_store_connect:
+        # Cấu hình tự động đẩy lên TestFlight của Apple
+        api_key: $APP_STORE_CONNECT_PRIVATE_KEY
+        key_id: $APP_STORE_CONNECT_KEY_IDENTIFIER
+        issuer_id: $APP_STORE_CONNECT_ISSUER_ID
+        submit_to_testflight: true
+        # Tự động gửi duyệt nếu muốn (mặc định là false để test trước qua TestFlight)
+        submit_to_app_store: false
