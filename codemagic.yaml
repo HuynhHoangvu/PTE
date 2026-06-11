@@ -37,29 +37,44 @@ workflows:
 
       - name: Set up code signing (Tự động qua API Key)
         script: |
+          set -ex  # Dừng ngay nếu có lệnh lỗi và in ra lệnh đang chạy
           echo "=== Khởi tạo Keychain ==="
           keychain initialize
 
           echo "=== Fetch Signing Files ==="
+          # Thêm -v để in log chi tiết
           app-store-connect fetch-signing-files "$APP_ID" \
             --issuer-id "$APP_STORE_CONNECT_ISSUER_ID" \
             --key-id "$APP_STORE_CONNECT_KEY_IDENTIFIER" \
             --private-key "$APP_STORE_CONNECT_PRIVATE_KEY" \
             --type IOS_APP_STORE \
-            --create
+            --create -v
 
           echo "=== Nạp chứng chỉ ==="
-          keychain add-certificates
+          keychain add-certificates -v
 
           echo "=== Áp dụng Profile ==="
-          xcode-project use-profiles
+          xcode-project use-profiles -v
 
 
       - name: Build IPA
         script: |
+          set -ex
+          # Chạy build với biến môi trường trực tiếp ép cấu hình signing
+          export DEVELOPMENT_TEAM="6G2HP2S64D"
+          export CODE_SIGN_IDENTITY="Apple Distribution"
+          export CODE_SIGN_STYLE="Manual"
+
           xcode-project build-ipa \
             --workspace "frontend/ios/App/App.xcworkspace" \
-            --scheme "App"
+            --scheme "App" \
+            --archive-flags="-xcconfig $PWD/build.xcconfig" || (
+              # Nếu lỗi do flags, thử chạy không flags
+              echo "Lỗi archive với flags, thử lại mặc định..."
+              xcode-project build-ipa \
+                --workspace "frontend/ios/App/App.xcworkspace" \
+                --scheme "App"
+            )
 
     artifacts:
       - build/ios/ipa/*.ipa
