@@ -47,15 +47,13 @@ workflows:
           echo "Key OK: $(wc -c < /tmp/ios_key.pem) bytes"
 
           echo "=== 3. Tạo Certificate qua API (tool tự sinh CSR) ==="
-          # --certificate-key: truyền private key, tool tự tạo CSR nội bộ
-          # --p12-path: lưu p12 tại đường dẫn chỉ định
-          # --p12-password: mật khẩu p12
+          # Dùng @file: prefix theo cú pháp của Codemagic CLI
           app-store-connect certificates create \
             --issuer-id "$APP_STORE_CONNECT_ISSUER_ID" \
             --key-id "$APP_STORE_CONNECT_KEY_IDENTIFIER" \
             --private-key "$APP_STORE_CONNECT_PRIVATE_KEY" \
             --type IOS_DISTRIBUTION \
-            --certificate-key /tmp/ios_key.pem \
+            --certificate-key "@file:/tmp/ios_key.pem" \
             --p12-password "codemagic123" \
             --p12-path /tmp/ios_dist.p12 \
             --save \
