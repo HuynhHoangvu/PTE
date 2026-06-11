@@ -47,9 +47,17 @@ workflows:
           xcode-project use-profiles
       - name: Build IPA (File cài đặt iOS)
         script: |
+          # Chạy build và ghi log chi tiết ra file
           xcode-project build-ipa \
             --workspace "frontend/ios/App/App.xcworkspace" \
-            --scheme "App"
+            --scheme "App" > xcode_build_log.txt 2>&1 || (
+              echo "❌ BIÊN DỊCH THẤT BẠI! Dưới đây là chi tiết lỗi của Xcode:"
+              echo "--------------------------------------------------------"
+              # Tìm và in ra các dòng chứa chữ 'error:' hoặc 'failed' kèm theo 5 dòng xung quanh
+              grep -A 5 -B 2 -i "error:" xcode_build_log.txt || grep -A 5 -B 2 -i "failed" xcode_build_log.txt || tail -n 100 xcode_build_log.txt
+              echo "--------------------------------------------------------"
+              exit 65
+            )
     artifacts:
       - build/ios/ipa/*.ipa
     publishing:
