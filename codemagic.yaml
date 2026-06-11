@@ -35,59 +35,24 @@ workflows:
           cd frontend/ios/App
           pod install --repo-update
 
-      - name: Set up code signing (Manual via OpenSSL + API)
+      - name: Set up code signing (Tự động qua API Key)
         script: |
-          echo "=== 1. Khởi tạo Keychain ==="
+          echo "=== Khởi tạo Keychain ==="
           keychain initialize
-          KEYCHAIN=$(ls ~/Library/codemagic-cli-tools/keychains/*.keychain-db 2>/dev/null | head -1)
-          echo "Keychain: $KEYCHAIN"
 
-          echo "=== 2. Sinh Private Key ==="
-          openssl genrsa -out /tmp/ios_key.pem 2048
-          echo "Key OK: $(wc -c < /tmp/ios_key.pem) bytes"
-
-          echo "=== 3. Tạo Certificate qua API (tool tự sinh CSR) ==="
-          # Dùng @file: prefix theo cú pháp của Codemagic CLI
-          app-store-connect certificates create \
-            --issuer-id "$APP_STORE_CONNECT_ISSUER_ID" \
-            --key-id "$APP_STORE_CONNECT_KEY_IDENTIFIER" \
-            --private-key "$APP_STORE_CONNECT_PRIVATE_KEY" \
-            --type IOS_DISTRIBUTION \
-            --certificate-key "@file:/tmp/ios_key.pem" \
-            --p12-password "codemagic123" \
-            --p12-path /tmp/ios_dist.p12 \
-            --save \
-            && echo "✅ Certificate tạo thành công!" \
-            || { echo "❌ Certificate thất bại!"; exit 1; }
-
-          echo "P12 size: $(wc -c < /tmp/ios_dist.p12 2>/dev/null || echo 'không tìm thấy')"
-
-          echo "=== 4. Import P12 vào Keychain ==="
-          security import /tmp/ios_dist.p12 \
-            -k "$KEYCHAIN" \
-            -P "codemagic123" \
-            -A \
-            -T /usr/bin/codesign \
-            && echo "✅ Import OK!" \
-            || { echo "❌ Import thất bại!"; exit 1; }
-
-          echo "=== 5. Kiểm tra chứng chỉ ==="
-          security find-identity -v -p codesigning "$KEYCHAIN"
-
-          echo "=== 6. Tạo Provisioning Profile ==="
+          echo "=== Fetch Signing Files ==="
           app-store-connect fetch-signing-files "$APP_ID" \
             --issuer-id "$APP_STORE_CONNECT_ISSUER_ID" \
             --key-id "$APP_STORE_CONNECT_KEY_IDENTIFIER" \
             --private-key "$APP_STORE_CONNECT_PRIVATE_KEY" \
             --type IOS_APP_STORE \
-            --create \
-            && echo "✅ Profile OK!" \
-            || { echo "❌ Profile thất bại!"; exit 1; }
+            --create
 
+          echo "=== Nạp chứng chỉ ==="
           keychain add-certificates
 
-          echo "=== 7. Áp dụng vào Xcode ==="
-          xcode-project use-profiles && echo "✅ Done!"
+          echo "=== Áp dụng Profile ==="
+          xcode-project use-profiles
 
 
       - name: Build IPA
