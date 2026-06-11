@@ -42,64 +42,60 @@ workflows:
           KEYCHAIN=$(ls ~/Library/codemagic-cli-tools/keychains/*.keychain-db 2>/dev/null | head -1)
           echo "Keychain: $KEYCHAIN"
 
-          echo "=== 2. Sinh Private Key + CSR bằng OpenSSL ==="
+          echo "=== 2. Sinh Private Key + CSR ==="
           openssl genrsa -out /tmp/ios_key.pem 2048
-          echo "Key size: $(wc -c < /tmp/ios_key.pem)"
-
           openssl req -new -key /tmp/ios_key.pem -out /tmp/ios.csr \
             -subj "/CN=Apple Distribution/C=VN"
-          echo "CSR size: $(wc -c < /tmp/ios.csr)"
+          echo "Key OK: $(wc -c < /tmp/ios_key.pem) bytes"
+          echo "CSR OK: $(wc -c < /tmp/ios.csr) bytes"
 
-          CSR_BASE64=$(base64 /tmp/ios.csr | tr -d '\n')
+          # Dùng cat | base64 thay vì base64 filepath (macOS không hỗ trợ)
+          CSR_BASE64=$(cat /tmp/ios.csr | base64 | tr -d '\n')
           echo "CSR Base64 length: ${#CSR_BASE64}"
 
-          echo "=== 3. Tạo Certificate trên Apple bằng API ==="
+          echo "=== 3. Xem help của certificates create ==="
+          app-store-connect certificates create --help 2>&1 || true
+
+          echo ""
+          echo "=== 4. Thử tạo Certificate (dùng --csr) ==="
           app-store-connect certificates create \
             --issuer-id "$APP_STORE_CONNECT_ISSUER_ID" \
             --key-id "$APP_STORE_CONNECT_KEY_IDENTIFIER" \
             --private-key "$APP_STORE_CONNECT_PRIVATE_KEY" \
             --type IOS_DISTRIBUTION \
-            --certificate-content "$CSR_BASE64" \
+            --csr /tmp/ios.csr \
             --save \
-            && echo "✅ Tạo cert thành công!" \
-            || { echo "❌ Tạo cert thất bại! Thử tiếp..."; }
+            && echo "✅ Cert tạo thành công (--csr)!" \
+            || echo "❌ Thất bại với --csr, thử cách khác..."
 
-          echo "=== 4. Tìm file cert đã lưu ==="
-          CERT_FILE=$(find ~ -name "*.cer" -newer /tmp/ios.csr 2>/dev/null | head -1)
-          echo "Cert file tìm được: $CERT_FILE"
+          echo ""
+          echo "=== 5. Tìm file cert ==="
+          find ~ -name "*.cer" -newer /tmp/ios_key.pem 2>/dev/null | head -10 || echo "Không tìm thấy .cer"
+          CERT_FILE=$(find ~ -name "*.cer" -newer /tmp/ios_key.pem 2>/dev/null | head -1)
 
           if [ -z "$CERT_FILE" ]; then
-            echo "Không tìm thấy .cer file mới, tìm toàn bộ..."
-            find ~ -name "*.cer" 2>/dev/null | head -5
+            echo "Không có .cer → thoát để xem log"
             exit 1
           fi
 
-          echo "=== 5. Tạo P12 từ Key + Cert ==="
-          openssl x509 -in "$CERT_FILE" -inform DER -out /tmp/ios_cert.pem \
-            && echo "✅ Convert DER→PEM OK" \
-            || { echo "❌ Convert thất bại!"; exit 1; }
-
+          echo "=== 6. Tạo P12 ==="
+          openssl x509 -in "$CERT_FILE" -inform DER -out /tmp/ios_cert.pem
           openssl pkcs12 -export \
             -inkey /tmp/ios_key.pem \
             -in /tmp/ios_cert.pem \
             -out /tmp/ios_dist.p12 \
-            -passout pass:codemagic123 \
-            && echo "✅ Tạo P12 OK (size: $(wc -c < /tmp/ios_dist.p12))" \
-            || { echo "❌ Tạo P12 thất bại!"; exit 1; }
+            -passout pass:codemagic123
+          echo "P12 size: $(wc -c < /tmp/ios_dist.p12)"
 
-          echo "=== 6. Import P12 vào Keychain ==="
+          echo "=== 7. Import vào Keychain ==="
           security import /tmp/ios_dist.p12 \
-            -k "$KEYCHAIN" \
-            -P "codemagic123" \
-            -A \
-            -T /usr/bin/codesign \
-            && echo "✅ Import OK!" \
-            || { echo "❌ Import thất bại!"; exit 1; }
+            -k "$KEYCHAIN" -P "codemagic123" -A -T /usr/bin/codesign \
+            && echo "✅ Import OK!"
 
-          echo "=== 7. Kiểm tra chứng chỉ ==="
+          echo "=== 8. Kiểm tra ==="
           security find-identity -v -p codesigning "$KEYCHAIN"
 
-          echo "=== 8. Tạo Provisioning Profile ==="
+          echo "=== 9. Tạo Provisioning Profile ==="
           app-store-connect fetch-signing-files "$APP_ID" \
             --issuer-id "$APP_STORE_CONNECT_ISSUER_ID" \
             --key-id "$APP_STORE_CONNECT_KEY_IDENTIFIER" \
@@ -111,11 +107,8 @@ workflows:
 
           keychain add-certificates
 
-          echo "=== 9. Áp dụng Profile vào Xcode ==="
-          xcode-project use-profiles \
-            && echo "✅ use-profiles OK!" \
-            || { echo "❌ use-profiles thất bại!"; exit 1; }
-
+          echo "=== 10. Áp dụng vào Xcode ==="
+          xcode-project use-profiles && echo "✅ Done!"
 
       - name: Build IPA
         script: |
