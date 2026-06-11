@@ -45,15 +45,78 @@ workflows:
 
           # Áp dụng Provisioning Profile vào Xcode Project
           xcode-project use-profiles
-      - name: Install CocoaPods dependencies (Bắt buộc cho iOS)
+      - name: Chẩn đoán môi trường và Build IPA
         script: |
+          echo "=============================="
+          echo "📋 KIỂM TRA MÔI TRƯỜNG"
+          echo "=============================="
+          echo "Xcode version: $(xcodebuild -version)"
+          echo "CocoaPods version: $(pod --version)"
+          echo "Node version: $(node -v)"
+          echo "Ruby version: $(ruby -v)"
+          echo ""
+
+          echo "=============================="
+          echo "📁 KIỂM TRA CẤU TRÚC THƯ MỤC"
+          echo "=============================="
+          ls -la frontend/ios/App/
+          echo ""
+
+          echo "=============================="
+          echo "📦 CHẠY POD INSTALL"
+          echo "=============================="
           cd frontend/ios/App
           pod install --repo-update
-      - name: Build IPA (File cài đặt iOS)
-        script: |
-          xcode-project build-ipa \
-            --workspace "frontend/ios/App/App.xcworkspace" \
-            --scheme "App"
+          echo "Pod install kết thúc, trạng thái: $?"
+          echo ""
+          cd /Users/builder/clone
+
+          echo "=============================="
+          echo "🔐 KIỂM TRA CHỨNG CHỈ & PROFILE"
+          echo "=============================="
+          security find-identity -v -p codesigning || echo "Không tìm thấy chứng chỉ nào"
+          echo ""
+          ls ~/Library/MobileDevice/Provisioning\ Profiles/ 2>/dev/null || echo "Không có Provisioning Profile nào"
+          echo ""
+
+          echo "=============================="
+          echo "🔧 KIỂM TRA CẤU HÌNH XCODE"
+          echo "=============================="
+          xcodebuild \
+            -workspace "frontend/ios/App/App.xcworkspace" \
+            -scheme "App" \
+            -showBuildSettings 2>&1 | grep -E "(PRODUCT_BUNDLE_IDENTIFIER|CODE_SIGN|PROVISIONING_PROFILE|DEVELOPMENT_TEAM|CONFIGURATION)"
+          echo ""
+
+          echo "=============================="
+          echo "🚀 BẮT ĐẦU BUILD ARCHIVE (VERBOSE)"
+          echo "=============================="
+          xcodebuild \
+            -workspace "frontend/ios/App/App.xcworkspace" \
+            -scheme "App" \
+            -archivePath /Users/builder/clone/build/ios/xcarchive/App.xcarchive \
+            -destination "generic/platform=iOS" \
+            archive \
+            COMPILER_INDEX_STORE_ENABLE=NO \
+            2>&1 | tee /tmp/xcode_full_log.txt | grep -E "(error:|warning: .*error|Build succeeded|FAILED|Failed|Signing|CodeSign|fatal)" || true
+
+          BUILD_STATUS=${PIPESTATUS[0]}
+          echo ""
+          echo "=============================="
+          if [ $BUILD_STATUS -eq 0 ]; then
+            echo "✅ ARCHIVE THÀNH CÔNG! Đang export IPA..."
+            echo "=============================="
+            xcode-project build-ipa \
+              --workspace "frontend/ios/App/App.xcworkspace" \
+              --scheme "App"
+          else
+            echo "❌ ARCHIVE THẤT BẠI! (Status: $BUILD_STATUS)"
+            echo "=============================="
+            echo ""
+            echo "📌 CÁC LỖI QUAN TRỌNG:"
+            grep -n "error:" /tmp/xcode_full_log.txt | head -30 || echo "(Không tìm thấy dòng lỗi cụ thể)"
+            exit $BUILD_STATUS
+          fi
     artifacts:
       - build/ios/ipa/*.ipa
     publishing:
