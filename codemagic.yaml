@@ -37,17 +37,27 @@ workflows:
 
       - name: Set up code signing (Tự động qua API Key)
         script: |
+          echo "--- Kiểm tra biến môi trường ---"
+          echo "APP_ID: $APP_ID"
+          echo "ISSUER_ID length: ${#APP_STORE_CONNECT_ISSUER_ID}"
+          echo "KEY_ID: $APP_STORE_CONNECT_KEY_IDENTIFIER"
+          echo "PRIVATE_KEY length: ${#APP_STORE_CONNECT_PRIVATE_KEY}"
+          echo "PRIVATE_KEY 3 dòng đầu:"
+          echo "$APP_STORE_CONNECT_PRIVATE_KEY" | head -3
+          echo "---"
+
           # Khởi tạo keychain
           keychain initialize
 
-          # Dùng API Key để tự động tạo chứng chỉ mới và provisioning profile từ Apple
-          # Codemagic tự sinh private key -> tạo CSR -> gửi Apple -> lấy cert -> tạo p12
+          # Gọi lệnh fetch-signing-files và in ra lỗi nếu thất bại
           app-store-connect fetch-signing-files "$APP_ID" \
             --issuer-id "$APP_STORE_CONNECT_ISSUER_ID" \
             --key-id "$APP_STORE_CONNECT_KEY_IDENTIFIER" \
             --private-key "$APP_STORE_CONNECT_PRIVATE_KEY" \
             --type IOS_APP_STORE \
-            --create
+            --create \
+            && echo "✅ fetch-signing-files thành công!" \
+            || { echo "❌ fetch-signing-files thất bại!"; exit 1; }
 
           # Nạp cert vào keychain
           keychain add-certificates
@@ -57,7 +67,9 @@ workflows:
           security find-identity -v -p codesigning
 
           # Áp dụng profile vào Xcode
-          xcode-project use-profiles
+          xcode-project use-profiles \
+            && echo "✅ Profiles đã được áp dụng!" \
+            || { echo "❌ use-profiles thất bại!"; exit 1; }
 
       - name: Build IPA
         script: |
