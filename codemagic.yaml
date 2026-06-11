@@ -37,12 +37,11 @@ workflows:
 
       - name: Set up code signing (Tự động qua API Key)
         script: |
-          set -ex  # Dừng ngay nếu có lệnh lỗi và in ra lệnh đang chạy
+          set -ex
           echo "=== Khởi tạo Keychain ==="
           keychain initialize
 
           echo "=== Fetch Signing Files ==="
-          # Thêm -v để in log chi tiết
           app-store-connect fetch-signing-files "$APP_ID" \
             --issuer-id "$APP_STORE_CONNECT_ISSUER_ID" \
             --key-id "$APP_STORE_CONNECT_KEY_IDENTIFIER" \
@@ -54,27 +53,26 @@ workflows:
           keychain add-certificates -v
 
           echo "=== Áp dụng Profile ==="
-          xcode-project use-profiles -v
+          # CHỈ ĐỊNH ĐÚNG ĐƯỜNG DẪN PROJECT VÌ ĐÂY LÀ CAPACITOR
+          xcode-project use-profiles --project "frontend/ios/App/App.xcodeproj" -v
 
 
       - name: Build IPA
         script: |
           set -ex
-          # Chạy build với biến môi trường trực tiếp ép cấu hình signing
-          export DEVELOPMENT_TEAM="6G2HP2S64D"
-          export CODE_SIGN_IDENTITY="Apple Distribution"
-          export CODE_SIGN_STYLE="Manual"
-
+          # Sử dụng xcodebuild thay cho build-ipa wrapper nếu wrapper lỗi
           xcode-project build-ipa \
             --workspace "frontend/ios/App/App.xcworkspace" \
             --scheme "App" \
-            --archive-flags="-xcconfig $PWD/build.xcconfig" || (
-              # Nếu lỗi do flags, thử chạy không flags
-              echo "Lỗi archive với flags, thử lại mặc định..."
-              xcode-project build-ipa \
-                --workspace "frontend/ios/App/App.xcworkspace" \
-                --scheme "App"
-            )
+            || {
+              echo "build-ipa thất bại, thử build thuần túy..."
+              xcodebuild archive \
+                -workspace "frontend/ios/App/App.xcworkspace" \
+                -scheme "App" \
+                -archivePath "build/ios/xcarchive/App.xcarchive" \
+                CODE_SIGN_STYLE=Manual \
+                COMPILER_INDEX_STORE_ENABLE=NO
+            }
 
     artifacts:
       - build/ios/ipa/*.ipa
