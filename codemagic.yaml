@@ -35,44 +35,59 @@ workflows:
           cd frontend/ios/App
           pod install --repo-update
 
-      - name: Set up code signing (Tự động qua API Key)
+      - name: Build & Sign IPA (Native Xcode Automatic Signing)
         script: |
           set -ex
-          echo "=== Khởi tạo Keychain ==="
-          keychain initialize
+          mkdir -p build/ios/xcarchive build/ios/ipa
+          
+          echo "=== 1. Tạo file P8 cho Apple API Key ==="
+          AUTH_KEY_PATH="/tmp/AuthKey_${APP_STORE_CONNECT_KEY_IDENTIFIER}.p8"
+          echo "$APP_STORE_CONNECT_PRIVATE_KEY" > "$AUTH_KEY_PATH"
+          chmod 600 "$AUTH_KEY_PATH"
 
-          echo "=== Fetch Signing Files ==="
-          app-store-connect fetch-signing-files "$APP_ID" \
-            --issuer-id "$APP_STORE_CONNECT_ISSUER_ID" \
-            --key-id "$APP_STORE_CONNECT_KEY_IDENTIFIER" \
-            --private-key "$APP_STORE_CONNECT_PRIVATE_KEY" \
-            --type IOS_APP_STORE \
-            --create -v
+          echo "=== 2. Ép Project dùng Automatic Signing ==="
+          cd frontend/ios/App
+          # Chuyển tất cả Manual thành Automatic trong file thiết lập của Xcode
+          sed -i '' 's/CODE_SIGN_STYLE = Manual;/CODE_SIGN_STYLE = Automatic;/g' App.xcodeproj/project.pbxproj
+          
+          echo "=== 3. Tạo file cấu hình Export ==="
+          cat <<EOF > ../../../build/ios/ExportOptions.plist
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+              <key>method</key>
+              <string>app-store</string>
+              <key>teamID</key>
+              <string>6G2HP2S64D</string>
+              <key>signingStyle</key>
+              <string>automatic</string>
+          </dict>
+          </plist>
+          EOF
 
-          echo "=== Nạp chứng chỉ ==="
-          keychain add-certificates -v
+          echo "=== 4. Đóng gói Archive (Xcode tự động lo chứng chỉ) ==="
+          xcodebuild archive \
+            -workspace "App.xcworkspace" \
+            -scheme "App" \
+            -archivePath "../../../build/ios/xcarchive/App.xcarchive" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$AUTH_KEY_PATH" \
+            -authenticationKeyID "$APP_STORE_CONNECT_KEY_IDENTIFIER" \
+            -authenticationKeyIssuerID "$APP_STORE_CONNECT_ISSUER_ID" \
+            DEVELOPMENT_TEAM="6G2HP2S64D"
 
-          echo "=== Áp dụng Profile ==="
-          # CHỈ ĐỊNH ĐÚNG ĐƯỜNG DẪN PROJECT VÌ ĐÂY LÀ CAPACITOR
-          xcode-project use-profiles --project "frontend/ios/App/App.xcodeproj" -v
+          echo "=== 5. Xuất file IPA ==="
+          xcodebuild -exportArchive \
+            -archivePath "../../../build/ios/xcarchive/App.xcarchive" \
+            -exportPath "../../../build/ios/ipa" \
+            -exportOptionsPlist "../../../build/ios/ExportOptions.plist" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$AUTH_KEY_PATH" \
+            -authenticationKeyID "$APP_STORE_CONNECT_KEY_IDENTIFIER" \
+            -authenticationKeyIssuerID "$APP_STORE_CONNECT_ISSUER_ID"
 
-
-      - name: Build IPA
-        script: |
-          set -ex
-          # Sử dụng xcodebuild thay cho build-ipa wrapper nếu wrapper lỗi
-          xcode-project build-ipa \
-            --workspace "frontend/ios/App/App.xcworkspace" \
-            --scheme "App" \
-            || {
-              echo "build-ipa thất bại, thử build thuần túy..."
-              xcodebuild archive \
-                -workspace "frontend/ios/App/App.xcworkspace" \
-                -scheme "App" \
-                -archivePath "build/ios/xcarchive/App.xcarchive" \
-                CODE_SIGN_STYLE=Manual \
-                COMPILER_INDEX_STORE_ENABLE=NO
-            }
+          echo "✅ Build IPA thành công!"
 
     artifacts:
       - build/ios/ipa/*.ipa
