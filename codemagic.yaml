@@ -75,7 +75,8 @@ workflows:
             -authenticationKeyPath "$AUTH_KEY_PATH" \
             -authenticationKeyID "$APP_STORE_CONNECT_KEY_IDENTIFIER" \
             -authenticationKeyIssuerID "$APP_STORE_CONNECT_ISSUER_ID" \
-            DEVELOPMENT_TEAM="6G2HP2S64D"
+            DEVELOPMENT_TEAM="6G2HP2S64D" \
+            "CODE_SIGN_IDENTITY=Apple Distribution"
 
           echo "=== 5. Xuất file IPA ==="
           xcodebuild -exportArchive \
