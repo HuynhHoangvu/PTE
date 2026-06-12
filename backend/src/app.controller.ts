@@ -21,7 +21,7 @@ export class AppController {
   @Get('/app-version')
   getAppVersion() {
     return {
-      minVersionCode: 20, // Minimum versionCode required to run the app
+      minVersionCode: 1, // Minimum versionCode required to run the app
       latestVersion: '1.0.9',
       forceUpdate: true,
       storeUrl: 'market://details?id=com.flyedu.pte',
