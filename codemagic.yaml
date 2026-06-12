@@ -20,6 +20,11 @@ workflows:
           cd frontend
           npm install
 
+      - name: Create env file
+        script: |
+          echo "VITE_API_BASE_URL=https://backend-production-29fd8.up.railway.app" > frontend/.env.production
+          echo "VITE_GOOGLE_CLIENT_ID=1002878505918-pvrkkjjs8lg8042arlusrlknigg6q63q.apps.googleusercontent.com" >> frontend/.env.production
+
       - name: Build web app
         script: |
           cd frontend
