@@ -3,6 +3,7 @@ import { useNavigate, Link } from "react-router-dom";
 import { useAuthStore } from "../../stores/authStore";
 import { MButton, MInput } from "../ui";
 import { logoUrl } from "../../assets";
+import { formatAuthError } from "../../utils/authErrors";
 
 export function MLoginPage() {
   const navigate = useNavigate();
@@ -18,8 +19,8 @@ export function MLoginPage() {
     try {
       await login(email, password);
       navigate("/dashboard", { replace: true });
-    } catch {
-      setError("Email hoặc mật khẩu không đúng.");
+    } catch (err) {
+      setError(formatAuthError(err));
     }
   };
 
@@ -127,16 +128,21 @@ export function MRegisterPage() {
   const [fullName, setFullName] = React.useState("");
   const [email, setEmail] = React.useState("");
   const [password, setPassword] = React.useState("");
+  const [agree, setAgree] = React.useState(false);
   const [error, setError] = React.useState("");
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+    if (!agree) {
+      setError("Bạn phải đồng ý với Điều khoản sử dụng và Chính sách bảo mật để tiếp tục.");
+      return;
+    }
     try {
       await register(email, fullName, password);
       navigate("/dashboard", { replace: true });
     } catch (err: any) {
-      setError(err?.response?.data?.message || "Đăng ký thất bại, thử lại.");
+      setError(formatAuthError(err));
     }
   };
 
@@ -186,6 +192,30 @@ export function MRegisterPage() {
               minLength={6}
               required
             />
+            
+            <div className="flex items-start gap-2.5 py-1">
+              <input
+                id="agree-checkbox"
+                type="checkbox"
+                checked={agree}
+                onChange={(e) => setAgree(e.target.checked)}
+                className="w-4 h-4 rounded border-gray-300 text-brand-gold focus:ring-brand-gold mt-0.5"
+                style={{ accentColor: '#eab308' }}
+                required
+              />
+              <label htmlFor="agree-checkbox" className="text-xs text-gray-500 leading-normal select-none">
+                Tôi đồng ý với{" "}
+                <Link to="/terms" className="font-semibold text-brand-gold underline">
+                  Điều khoản sử dụng
+                </Link>{" "}
+                và{" "}
+                <Link to="/privacy" className="font-semibold text-brand-gold underline">
+                  Chính sách bảo mật
+                </Link>{" "}
+                của FLY Academy.
+              </label>
+            </div>
+
             <MButton type="submit" variant="primary" fullWidth loading={isLoading} className="mt-2">
               Đăng ký miễn phí
             </MButton>

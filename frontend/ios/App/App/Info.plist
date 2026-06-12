@@ -47,5 +47,7 @@
 	<true/>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Ứng dụng cần truy cập micro để bạn thực hiện phần thi nói (Speaking) và ghi âm bài trả lời.</string>
 </dict>
 </plist>
