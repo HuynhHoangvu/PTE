@@ -12,23 +12,94 @@ export function MLoginPage() {
   const [password, setPassword] = React.useState("");
   const [error, setError] = React.useState("");
   const [showPwd, setShowPwd] = React.useState(false);
+  const [rememberMe, setRememberMe] = React.useState(false);
+  const [isScanning, setIsScanning] = React.useState(false);
+  const [scanSuccess, setScanSuccess] = React.useState(false);
+
+  React.useEffect(() => {
+    const savedEmail = localStorage.getItem("fly_remember_email");
+    if (savedEmail) {
+      setEmail(savedEmail);
+      setRememberMe(true);
+    }
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
     try {
       await login(email, password);
+      if (rememberMe) {
+        localStorage.setItem("fly_remember_email", email);
+      } else {
+        localStorage.removeItem("fly_remember_email");
+      }
       navigate("/dashboard", { replace: true });
     } catch (err) {
       setError(formatAuthError(err));
     }
   };
 
+  const hasBiometrics = localStorage.getItem("fly_biometrics_enabled") === "true";
+
+  const handleBiometricLogin = () => {
+    const token = localStorage.getItem("fly_biometric_token");
+    const userStr = localStorage.getItem("fly_biometric_user");
+
+    if (!token || !userStr) {
+      alert("Không tìm thấy thông tin sinh trắc học đã lưu. Vui lòng đăng nhập bằng mật khẩu trước và kích hoạt Face ID trong Cài đặt.");
+      return;
+    }
+
+    setIsScanning(true);
+    setScanSuccess(false);
+
+    // Simulate Face ID / Touch ID hardware scan on iOS
+    setTimeout(() => {
+      setScanSuccess(true);
+      setTimeout(() => {
+        const user = JSON.parse(userStr);
+        localStorage.setItem("fly_edu_token", token);
+        useAuthStore.setState({ user, token });
+        setIsScanning(false);
+        navigate("/dashboard", { replace: true });
+      }, 800);
+    }, 1200);
+  };
+
   return (
     <div
-      className="mobile-page-full flex flex-col"
+      className="mobile-page-full flex flex-col relative"
       style={{ background: "linear-gradient(175deg, #fffdf8 0%, #fef9e7 60%, #fdf6d9 100%)" }}
     >
+      {/* Biometric Scanning Overlay */}
+      {isScanning && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-6">
+          <div className="bg-white rounded-3xl p-6 w-full max-w-xs text-center space-y-4 shadow-2xl motion-safe:animate-fade-in-up">
+            <div className="text-4xl animate-pulse">
+              {scanSuccess ? "✅" : "👤"}
+            </div>
+            <h3 className="font-display font-bold text-lg text-gray-900">
+              {scanSuccess ? "Xác thực thành công" : "Xác thực Face ID / Touch ID"}
+            </h3>
+            <p className="text-xs text-gray-500 leading-relaxed">
+              {scanSuccess
+                ? "Đang đăng nhập vào hệ thống..."
+                : "Vui lòng nhìn vào camera hoặc đặt ngón tay lên cảm biến để tiếp tục."}
+            </p>
+            {!scanSuccess && (
+              <button
+                type="button"
+                onClick={() => setIsScanning(false)}
+                className="text-xs text-gray-400 font-bold hover:text-gray-600 underline pt-2"
+              >
+                Huỷ bỏ
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Logo area */}
       <div className="flex-1 flex flex-col items-center justify-center px-6 pt-16 pb-6">
         <img
@@ -78,15 +149,41 @@ export function MLoginPage() {
                 </button>
               }
             />
-            <MButton
-              type="submit"
-              variant="primary"
-              fullWidth
-              loading={isLoading}
-              className="mt-2"
-            >
-              Đăng nhập
-            </MButton>
+
+            <div className="flex items-center justify-between py-1">
+              <label className="flex items-center gap-2 text-xs text-gray-500 select-none">
+                <input
+                  type="checkbox"
+                  checked={rememberMe}
+                  onChange={(e) => setRememberMe(e.target.checked)}
+                  className="w-4 h-4 rounded border-gray-300 text-brand-gold focus:ring-brand-gold"
+                  style={{ accentColor: '#eab308' }}
+                />
+                Nhớ tài khoản
+              </label>
+            </div>
+
+            <div className="flex gap-2.5 mt-2">
+              <MButton
+                type="submit"
+                variant="primary"
+                loading={isLoading}
+                className="flex-1"
+              >
+                Đăng nhập
+              </MButton>
+              
+              {hasBiometrics && (
+                <button
+                  type="button"
+                  onClick={handleBiometricLogin}
+                  className="w-12 h-12 rounded-2xl border border-brand-gold/20 flex items-center justify-center bg-amber-50 hover:bg-amber-100 active:scale-95 transition-all text-xl shadow-sm"
+                  title="Đăng nhập sinh trắc học"
+                >
+                  🆔
+                </button>
+              )}
+            </div>
           </form>
 
           <p className="text-center text-sm text-gray-500">

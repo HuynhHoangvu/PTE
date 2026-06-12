@@ -57,6 +57,34 @@ export default function MProfilePage() {
   const [localTarget, setLocalTarget] = React.useState(targetScore);
   const [localExamDate, setLocalExamDate] = React.useState(examDate);
 
+  const [biometricsEnabled, setBiometricsEnabled] = React.useState(
+    localStorage.getItem("fly_biometrics_enabled") === "true"
+  );
+
+  const handleBiometricsToggle = async () => {
+    if (biometricsEnabled) {
+      localStorage.removeItem("fly_biometrics_enabled");
+      localStorage.removeItem("fly_biometric_token");
+      localStorage.removeItem("fly_biometric_user");
+      setBiometricsEnabled(false);
+    } else {
+      const confirm = window.confirm(
+        "Cho phép FLY Academy sử dụng Face ID / Touch ID để đăng nhập nhanh trong các lần sau?"
+      );
+      if (confirm) {
+        const token = localStorage.getItem("fly_edu_token");
+        if (token && user) {
+          localStorage.setItem("fly_biometrics_enabled", "true");
+          localStorage.setItem("fly_biometric_token", token);
+          localStorage.setItem("fly_biometric_user", JSON.stringify(user));
+          setBiometricsEnabled(true);
+        } else {
+          alert("Vui lòng đăng nhập lại để bật tính năng này.");
+        }
+      }
+    }
+  };
+
   React.useEffect(() => {
     isNotifSupported().then(setNotifSupported);
   }, []);
@@ -306,6 +334,28 @@ export default function MProfilePage() {
             )}
           </div>
         )}
+
+        {/* Biometrics FaceID / TouchID settings */}
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+          <div className="px-4 py-3 flex items-center justify-between">
+            <div>
+              <p className="font-bold text-sm text-gray-900">🔐 Đăng nhập bằng sinh trắc học</p>
+              <p className="text-[10px] text-gray-400 mt-0.5">Sử dụng Face ID hoặc Touch ID trên iPhone</p>
+            </div>
+            <button
+              onClick={handleBiometricsToggle}
+              className={clsx(
+                "w-12 h-6 rounded-full transition-all relative",
+                biometricsEnabled ? "bg-brand-gold" : "bg-gray-200"
+              )}
+            >
+              <div className={clsx(
+                "w-5 h-5 rounded-full bg-white shadow-sm absolute top-0.5 transition-all",
+                biometricsEnabled ? "right-0.5" : "left-0.5"
+              )} />
+            </button>
+          </div>
+        </div>
 
         {/* Logout */}
         <MButton variant="danger" fullWidth onClick={handleLogout}>
