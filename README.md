@@ -1,17 +1,21 @@
 # ✈️ Fly-Edu – PTE Academic Practice Platform
 
-Full-stack hệ thống ôn luyện PTE Academic với AI Scoring.
+Full-stack hệ thống ôn luyện PTE Academic với AI Scoring, hỗ trợ Web, Android (Capacitor) và iOS (Capacitor + Codemagic).
 
 ## Tech Stack
 
 | Layer | Technology |
 |-------|-----------|
-| Backend | NestJS + TypeScript + TypeORM |
-| Database | PostgreSQL |
-| Frontend | Vite + React + TypeScript + TailwindCSS |
-| State | Zustand + TanStack Query |
-| AI Scoring | OpenAI GPT-4o-mini + Whisper |
-| Auth | JWT + Passport |
+| **Backend** | NestJS + TypeScript + TypeORM |
+| **Database** | PostgreSQL |
+| **Frontend** | Vite + React + TypeScript + TailwindCSS |
+| **State** | Zustand + TanStack Query |
+| **AI Scoring** | OpenAI GPT-4o-mini + Whisper |
+| **Auth** | JWT + Passport |
+| **Mobile Shell** | Capacitor (Android & iOS) |
+| **CI/CD Mobile** | Codemagic (iOS Archive & Publish) |
+
+---
 
 ## Quick Start
 
@@ -32,7 +36,7 @@ npm run start:dev
 # → Swagger docs: http://localhost:3000/api/docs
 ```
 
-### 3. Frontend
+### 3. Frontend (Web)
 ```bash
 cd frontend
 npm install
@@ -40,165 +44,112 @@ npm run dev
 # → http://localhost:5173
 ```
 
-### 4. Android (Google Play) — Capacitor
+---
 
-- Cấu hình API production: copy `frontend/.env.example` → `.env.production`, đặt `VITE_API_BASE_URL=https://your-api-host` (không có `/` cuối).
-- Build + đồng bộ: `cd frontend && npm run cap:sync`
-- Mở Android Studio: `npm run cap:open` → tạo **AAB** (Build → Generate Signed Bundle).
-- Chi tiết Play Console, Data safety, ký app: xem [docs/GOOGLE_PLAY_STORE.md](docs/GOOGLE_PLAY_STORE.md).
+## Hướng dẫn Build & Deploy Mobile (Capacitor)
 
-## API Endpoints
+### 1. Cấu hình môi trường Production cho Mobile
+Vì lý do bảo mật, file cấu hình API production của Mobile nằm trong `.gitignore` và không được commit lên Git.
+Khi chạy ở local (Android Studio hoặc Xcode), bạn cần tạo file này:
+* Tạo file `frontend/.env.production` và điền:
+  ```env
+  VITE_API_BASE_URL=https://backend-production-29fd8.up.railway.app
+  VITE_GOOGLE_CLIENT_ID=1002878505918-pvrkkjjs8lg8042arlusrlknigg6q63q.apps.googleusercontent.com
+  ```
 
-### Auth
-- `POST /api/auth/register` – Đăng ký
-- `POST /api/auth/login` – Đăng nhập
-- `GET /api/auth/me` – Lấy thông tin user hiện tại
+---
 
-### Questions
-- `GET /api/questions?skill=SPEAKING&type=SPEAKING_READ_ALOUD&page=1&limit=50`
-- `GET /api/questions/:id`
-- `GET /api/questions/skill/:skill/progress`
-- `GET /api/questions/:code/adjacent?direction=next&type=SPEAKING_READ_ALOUD`
+### 2. Android (Google Play Console)
+1. Cấu hình API production (xem phần 1).
+2. Build và đồng bộ mã nguồn web vào Android project:
+   ```bash
+   cd frontend
+   npm run cap:sync
+   ```
+3. Mở Android Studio:
+   ```bash
+   npm run cap:open
+   ```
+4. Tạo mã nhị phân ký **AAB** (Build -> Generate Signed Bundle) để tải lên Google Play Console.
+5. Chi tiết cấu hình bảo mật dữ liệu, tạo Keystore: xem tài liệu tại [docs/GOOGLE_PLAY_STORE.md](docs/GOOGLE_PLAY_STORE.md).
 
-### Attempts (AI Scoring)
-- `POST /api/attempts/speaking` – Submit audio (multipart/form-data)
-- `POST /api/attempts/text` – Submit text/MC/FIB answers
-- `GET /api/attempts/:id/score` – Poll for AI score result
-- `GET /api/attempts/question/:questionId` – Lịch sử của 1 câu hỏi
+---
 
-### Mock Tests
-- `GET /api/mock-tests` – Danh sách mock tests
-- `POST /api/mock-tests/:id/start` – Bắt đầu thi
-- `PATCH /api/mock-tests/attempts/:attemptId/progress` – Lưu tiến độ
-- `POST /api/mock-tests/attempts/:attemptId/submit` – Nộp bài
+### 3. iOS (App Store & TestFlight qua Codemagic)
+Quá trình build và ký ứng dụng (Code Signing) iOS được thực hiện hoàn toàn tự động thông qua **Codemagic** bằng tài khoản **App Store Connect API Key**.
 
-### Users
-- `GET /api/users/stats` – Thống kê cá nhân
-- `GET /api/users/leaderboard`
+#### A. Cách hoạt động của Quy trình CI/CD trên Codemagic:
+* Mã nguồn đẩy lên GitHub (nhánh `main`) sẽ tự động kích hoạt Codemagic build.
+* Script trong `codemagic.yaml` sẽ tự động:
+  1. Tạo động file `frontend/.env.production` với các cấu hình API Production của dự án.
+  2. Cài đặt các thư viện Node, chạy `npm run build`, đồng bộ code sang iOS qua `npx cap sync ios`.
+  3. Ký ứng dụng bằng **Xcode Automatic Signing** sử dụng API Key.
+  4. Xuất file `.ipa` và tự động tải lên TestFlight của App Store Connect.
 
-## Question Types (22 loại)
+#### B. Khắc phục lỗi Code Signing phổ biến trên Codemagic:
+Khi sử dụng **Xcode Automatic Signing**, lỗi sau thường xuất hiện trên các máy ảo build mới:
+> *error: Revoke certificate: Your account already has an Apple Development signing certificate for this machine, but its private key is not installed in your keychain.*
+
+* **Nguyên nhân:** Do tài khoản Apple Developer đã có chứng chỉ Development từ lần build trước, nhưng máy ảo build mới của Codemagic không chứa khóa bí mật (private key) của chứng chỉ này.
+* **Cách khắc phục:**
+  1. Đăng nhập vào trang quản lý **[Apple Developer Certificates](https://developer.apple.com/account/resources/certificates/list)**.
+  2. Tìm chứng chỉ loại **Apple Development** hoặc **iOS Development** và nhấn **Revoke** (Thu hồi/Xóa).
+  3. Quay lại Codemagic bấm **Start new build** để hệ thống tự tạo mới cặp chứng chỉ và khóa bí mật.
+
+#### C. Lưu ý khi cấu hình Microphone (Speaking):
+* Hệ điều hành iOS bắt buộc ứng dụng phải khai báo lý do truy cập micro.
+* Cấu hình này nằm trong file [Info.plist](frontend/ios/App/App/Info.plist) của dự án:
+  ```xml
+  <key>NSMicrophoneUsageDescription</key>
+  <string>Ứng dụng cần truy cập micro để bạn thực hiện phần thi nói (Speaking) và ghi âm bài trả lời.</string>
+  ```
+  *Nếu thiếu cấu hình này, ứng dụng iOS sẽ tự động chặn quyền ghi âm và hiển thị lỗi thiết bị không hỗ trợ.*
+
+---
+
+## Tính năng mới trên Mobile (v2.0)
+
+### 1. Ghi nhớ tài khoản (Remember Me)
+* Thêm ô kiểm **Nhớ tài khoản** tại màn hình đăng nhập di động. Khi được tích, ứng dụng sẽ lưu email của người dùng lại để tự động điền trong những lần đăng nhập sau.
+
+### 2. Đăng nhập nhanh bằng Face ID / Touch ID
+* **Cài đặt:** Người dùng có thể bật/tắt tính năng **Đăng nhập bằng sinh trắc học** trực tiếp tại tab *Hồ sơ cá nhân*.
+* **Đăng nhập nhanh:** Khi được kích hoạt, một nút icon ID (🆔) sẽ xuất hiện tại màn hình đăng nhập. Nhấn nút này sẽ kích hoạt màn hình quét Face ID / Touch ID và tự động đăng nhập thẳng vào hệ thống mà không cần nhập mật khẩu.
+
+### 3. Quy chuẩn kiểm soát phiên bản (Version Control Check)
+* Hệ thống backend có tính năng kiểm tra phiên bản bắt buộc qua API `/api/app-version`.
+* Cấu hình `minVersionCode` trong backend điều khiển phiên bản tối thiểu được phép sử dụng ứng dụng. Khi chạy test phiên bản mới (TestFlight/Internal test), cấu hình này cần đặt là `1` để tránh bị màn hình yêu cầu cập nhật chặn lại.
+
+---
+
+## Question Types (22 loại câu hỏi)
 
 ### Speaking (7)
-| Code | Type |
-|------|------|
-| RA | SPEAKING_READ_ALOUD |
-| RS | SPEAKING_REPEAT_SENTENCE |
-| DI | SPEAKING_DESCRIBE_IMAGE |
-| RL | SPEAKING_RETELL_LECTURE |
-| ASQ | SPEAKING_ANSWER_SHORT_QUESTION |
-| SGD | SPEAKING_SUMMARISE_GROUP_DISCUSSION |
-| RASA | SPEAKING_RESPOND_TO_SITUATION |
+* **RA** – SPEAKING_READ_ALOUD
+* **RS** – SPEAKING_REPEAT_SENTENCE
+* **DI** – SPEAKING_DESCRIBE_IMAGE
+* **RL** – SPEAKING_RETELL_LECTURE
+* **ASQ** – SPEAKING_ANSWER_SHORT_QUESTION
+* **SGD** – SPEAKING_SUMMARISE_GROUP_DISCUSSION
+* **RASA** – SPEAKING_RESPOND_TO_SITUATION
 
 ### Writing (2)
-| SWT | WRITING_SUMMARIZE_WRITTEN_TEXT |
-| WE | WRITING_ESSAY |
+* **SWT** – WRITING_SUMMARIZE_WRITTEN_TEXT
+* **WE** – WRITING_ESSAY
 
 ### Reading (5)
-| RWFIB | READING_FIB_R_W |
-| RMA | READING_MCQ_MULTIPLE_ANSWER |
-| ROP | READING_RE_ORDER_PARAGRAPH |
-| RFIB | READING_FIB_R |
-| RSA | READING_MCQ_SINGLE_ANSWER |
+* **RWFIB** – READING_FIB_R_W
+* **RMA** – READING_MCQ_MULTIPLE_ANSWER
+* **ROP** – READING_RE_ORDER_PARAGRAPH
+* **RFIB** – READING_FIB_R
+* **RSA** – READING_MCQ_SINGLE_ANSWER
 
 ### Listening (8)
-| SST | LISTENING_SUMMARIZE_SPOKEN_TEXT |
-| LMA | LISTENING_MCQ_MULTIPLE_ANSWER |
-| LFIB | LISTENING_FIB_L |
-| HCS | LISTENING_HIGHLIGHT_CORRECT_SUMMARY |
-| LSA | LISTENING_MCQ_SINGLE_ANSWER |
-| SMW | LISTENING_SELECT_MISSING_WORD |
-| HIW | LISTENING_HIGHLIGHT_INCORRECT_WORD |
-| WFD | LISTENING_DICTATION |
-
-## Project Structure
-
-```
-fly-edu/
-├── backend/
-│   ├── src/
-│   │   ├── auth/           # JWT Auth
-│   │   ├── users/          # User management
-│   │   ├── questions/      # Question CRUD
-│   │   ├── attempts/       # Practice attempts + audio upload
-│   │   ├── mock-test/      # Mock test sessions
-│   │   ├── ai-scoring/     # OpenAI GPT + Whisper integration
-│   │   └── common/         # Guards, decorators
-│   └── package.json
-│
-├── python-scorer/            # Independent AI scoring service (Python)
-│   ├── core/
-│   ├── services/
-│   └── requirements.txt
-│
-├── docs/                     # Deployment and release docs
-│   └── GOOGLE_PLAY_STORE.md
-│
-└── frontend/
-    ├── src/
-    │   ├── api/            # Axios API client
-    │   ├── components/
-    │   │   ├── ui/         # Button, Badge, AudioPlayer, Waveform, ScorePanel...
-    │   │   ├── layout/     # Sidebar, MainLayout
-    │   │   └── practice/   # PracticeLayout, all QuestionTypes
-    │   ├── hooks/          # useRecorder, useTimer
-    │   ├── pages/
-    │   │   ├── auth/       # Login, Register
-    │   │   ├── DashboardPage.tsx
-    │   │   ├── SkillPage.tsx
-    │   │   ├── QuestionPage.tsx
-    │   │   └── MockTestPage.tsx
-    │   ├── stores/         # Zustand auth store
-    │   └── types/          # TypeScript types
-    └── package.json
-```
-
-## Release Hygiene (Google Play)
-
-- Khong commit file nhay cam: `.env`, service-account json, keystore `.jks`, `key.properties`.
-- Khong de file local/noi bo trong repo: database dump (`.sql`, `.dump`), browser profile, virtual env.
-- Build Android tu local machine/CI va luu secret bang bien moi truong hoac secret manager.
-
-## Seed Data
-
-Để thêm câu hỏi mẫu, gọi API:
-```bash
-curl -X POST http://localhost:3000/api/questions \
-  -H "Authorization: Bearer <token>" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "code": "RA0002",
-    "skill": "SPEAKING",
-    "type": "SPEAKING_READ_ALOUD",
-    "title": "Major Conclusion",
-    "content": "Our major conclusion is that the current measure needs to be revised...",
-    "level": "Easy",
-    "isTrending": true,
-    "isRepeated": false,
-    "prepTime": 40,
-    "responseTime": 40
-  }'
-```
-
-## Brand Colors
-
-| Name | Hex |
-|------|-----|
-| Yellow | `#F5C518` |
-| Yellow Deep | `#D4A600` |
-| Orange | `#FF6B1A` |
-| Black | `#0E0E0E` |
-
-## Features
-
-- ✅ Auth (Register/Login/JWT)
-- ✅ 22 question types với UI riêng biệt
-- ✅ AI Scoring qua OpenAI GPT-4o-mini
-- ✅ Speech-to-text qua Whisper
-- ✅ Audio recording trong browser
-- ✅ Progress tracking per skill/type
-- ✅ Mock Test với timer 3h
-- ✅ Question list drawer với filter/search
-- ✅ Analysis table (lịch sử attempt)
-- ✅ Streak tracking
-- ✅ Responsive sidebar
-- ✅ Yellow/Black/Orange brand theme
+* **SST** – LISTENING_SUMMARIZE_SPOKEN_TEXT
+* **LMA** – LISTENING_MCQ_MULTIPLE_ANSWER
+* **LFIB** – LISTENING_FIB_L
+* **HCS** – LISTENING_HIGHLIGHT_CORRECT_SUMMARY
+* **LSA** – LISTENING_MCQ_SINGLE_ANSWER
+* **SMW** – LISTENING_SELECT_MISSING_WORD
+* **HIW** – LISTENING_HIGHLIGHT_INCORRECT_WORD
+* **WFD** – LISTENING_DICTATION
