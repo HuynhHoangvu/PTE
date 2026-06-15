@@ -5,13 +5,14 @@ import { clsx } from 'clsx';
 import {
   Crown, CheckCircle2, Clock, Zap, Shield, Star,
   Copy, CheckCheck, Plane, ChevronRight, XCircle,
-  AlertCircle, RefreshCw,
+  AlertCircle, RefreshCw, Lock, Info,
 } from 'lucide-react';
 import { paymentsApi } from '../api';
 import { useAuthStore } from '../stores/authStore';
 import { MainLayout } from '../components/layout/Sidebar';
 import { Button } from '../components/ui';
 import { LUX } from '../theme/luxuryPalette';
+import { Capacitor } from '@capacitor/core';
 
 const GOLD   = LUX.gold;
 const GOLD_B = LUX.goldBright;
@@ -244,6 +245,7 @@ export default function PremiumPage() {
   const [selectedPlan, setSelectedPlan] = React.useState<typeof PLANS[0] | null>(null);
 
   const isPremium = user?.plan === 'premium';
+  const isIOS = Capacitor.getPlatform() === 'ios';
 
   return (
     <MainLayout>
@@ -296,115 +298,130 @@ export default function PremiumPage() {
             ))}
           </div>
 
-          {/* Pricing cards */}
-          <div className="grid grid-cols-3 gap-5 mb-10">
-            {PLANS.map((plan) => (
-              <div key={plan.index}
-                   className={clsx('relative rounded-2xl overflow-hidden transition-all duration-200',
-                     plan.highlight
-                       ? 'shadow-xl'
-                       : 'shadow-card border border-gray-100 bg-white'
-                   )}
-                   style={plan.highlight ? {
-                     background: `linear-gradient(180deg, ${LUX.charcoalDeep} 0%, ${LUX.charcoal} 100%)`,
-                     border: `2px solid ${GOLD_B}`,
-                   } : {}}>
+          {isIOS ? (
+            <div className="card p-6 mb-8 text-center">
+              <h3 className="font-display font-black text-base mb-3 flex items-center justify-center gap-2">
+                <Lock size={15} style={{ color: GOLD }} /> Premium trên iOS
+              </h3>
+              <p className="text-sm text-gray-600 leading-relaxed">
+                Tài khoản Premium đã được đồng bộ theo trạng thái tài khoản của bạn.
+                Vui lòng đăng nhập bằng tài khoản đã kích hoạt Premium để sử dụng đầy đủ tính năng.
+              </p>
+            </div>
+          ) : (
+            <>
+              {/* Pricing cards */}
+              <div className="grid grid-cols-3 gap-5 mb-10">
+                {PLANS.map((plan) => (
+                  <div key={plan.index}
+                       className={clsx('relative rounded-2xl overflow-hidden transition-all duration-200',
+                         plan.highlight
+                           ? 'shadow-xl'
+                           : 'shadow-card border border-gray-100 bg-white'
+                       )}
+                       style={plan.highlight ? {
+                         background: `linear-gradient(180deg, ${LUX.charcoalDeep} 0%, ${LUX.charcoal} 100%)`,
+                         border: `2px solid ${GOLD_B}`,
+                       } : {}}>
 
-                {/* Top accent line */}
-                {plan.highlight && (
-                  <div className="h-1 w-full" style={{ background: `linear-gradient(90deg, ${GOLD}, ${GOLD_B})` }} />
-                )}
-
-                <div className="p-6">
-                  {/* Badge */}
-                  <span className={clsx('text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full', plan.badgeColor)}>
-                    {plan.badge}
-                  </span>
-
-                  {/* Duration */}
-                  <div className="mt-4 mb-1">
-                    <p className={clsx('font-display font-black text-3xl', plan.highlight ? 'text-white' : 'text-gray-900')}>
-                      {plan.days}
-                      <span className={clsx('text-base font-semibold ml-1', plan.highlight ? 'text-gray-400' : 'text-gray-500')}>ngày</span>
-                    </p>
-                  </div>
-
-                  {/* Price */}
-                  <div className="mb-2">
-                    <p className="font-display font-black text-2xl" style={{ color: plan.highlight ? LUX.goldPale : GOLD }}>
-                      ${plan.usd}
-                      <span className={clsx('text-sm font-normal ml-1', plan.highlight ? 'text-stone-300/90' : 'text-gray-400')}>USD</span>
-                    </p>
-                    <p className={clsx('text-xs mt-0.5', plan.highlight ? 'text-gray-500' : 'text-gray-400')}>
-                      {formatVND(plan.vnd)}
-                    </p>
-                  </div>
-
-                  <p className={clsx('text-sm mb-5', plan.highlight ? 'text-gray-400' : 'text-gray-500')}>
-                    {plan.description}
-                  </p>
-
-                  {/* Per-day cost */}
-                  <div className={clsx('rounded-xl px-3 py-2 mb-5 text-center',
-                    plan.highlight
-                      ? 'bg-white/[0.06] border border-white/10'
-                      : 'bg-gray-50 border border-gray-100')}>
-                    <p className={clsx('text-xs font-bold', plan.highlight ? 'text-stone-200/95' : 'text-gray-500')}>
-                      Chỉ <span style={{ color: plan.highlight ? LUX.cream : GOLD }}>{formatVND(Math.round(plan.vnd / plan.days))}</span>/ngày
-                    </p>
-                  </div>
-
-                  <button
-                    onClick={() => !isPremium && setSelectedPlan(plan)}
-                    disabled={isPremium}
-                    className={clsx('w-full py-3 rounded-xl font-bold text-sm transition-all duration-150 flex items-center justify-center gap-2',
-                      isPremium ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer',
-                      plan.highlight
-                        ? 'text-white hover:brightness-110'
-                        : 'border border-gray-200 hover:border-brand-gold hover:text-brand-gold transition-colors'
+                    {/* Top accent line */}
+                    {plan.highlight && (
+                      <div className="h-1 w-full" style={{ background: `linear-gradient(90deg, ${GOLD}, ${GOLD_B})` }} />
                     )}
-                    style={plan.highlight && !isPremium ? {
-                      background: `linear-gradient(135deg, ${GOLD}, ${GOLD_B})`,
-                      color: '#FFFFFF',
-                    } : plan.highlight && isPremium ? { background: `linear-gradient(135deg, ${GOLD}, ${GOLD_B})`, color: '#FFFFFF' } : {}}>
-                    {isPremium ? <><CheckCircle2 size={14} /> Đang dùng</> : <><Plane size={14} /> Mua ngay</>}
-                  </button>
+
+                    <div className="p-6">
+                      {/* Badge */}
+                      <span className={clsx('text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full', plan.badgeColor)}>
+                        {plan.badge}
+                      </span>
+
+                      {/* Duration */}
+                      <div className="mt-4 mb-1">
+                        <p className={clsx('font-display font-black text-3xl', plan.highlight ? 'text-white' : 'text-gray-900')}>
+                          {plan.days}
+                          <span className={clsx('text-base font-semibold ml-1', plan.highlight ? 'text-gray-400' : 'text-gray-500')}>ngày</span>
+                        </p>
+                      </div>
+
+                      {/* Price */}
+                      <div className="mb-2">
+                        <p className="font-display font-black text-2xl" style={{ color: plan.highlight ? LUX.goldPale : GOLD }}>
+                          ${plan.usd}
+                          <span className={clsx('text-sm font-normal ml-1', plan.highlight ? 'text-stone-300/90' : 'text-gray-400')}>USD</span>
+                        </p>
+                        <p className={clsx('text-xs mt-0.5', plan.highlight ? 'text-gray-500' : 'text-gray-400')}>
+                          {formatVND(plan.vnd)}
+                        </p>
+                      </div>
+
+                      <p className={clsx('text-sm mb-5', plan.highlight ? 'text-gray-400' : 'text-gray-500')}>
+                        {plan.description}
+                      </p>
+
+                      {/* Per-day cost */}
+                      <div className={clsx('rounded-xl px-3 py-2 mb-5 text-center',
+                        plan.highlight
+                          ? 'bg-white/[0.06] border border-white/10'
+                          : 'bg-gray-50 border border-gray-100')}>
+                        <p className={clsx('text-xs font-bold', plan.highlight ? 'text-stone-200/95' : 'text-gray-500')}>
+                          Chỉ <span style={{ color: plan.highlight ? LUX.cream : GOLD }}>{formatVND(Math.round(plan.vnd / plan.days))}</span>/ngày
+                        </p>
+                      </div>
+
+                      <button
+                        onClick={() => !isPremium && setSelectedPlan(plan)}
+                        disabled={isPremium}
+                        className={clsx('w-full py-3 rounded-xl font-bold text-sm transition-all duration-150 flex items-center justify-center gap-2',
+                          isPremium ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer',
+                          plan.highlight
+                            ? 'text-white hover:brightness-110'
+                            : 'border border-gray-200 hover:border-brand-gold hover:text-brand-gold transition-colors'
+                        )}
+                        style={
+                          plan.highlight
+                            ? { background: `linear-gradient(135deg, ${GOLD}, ${GOLD_B})`, color: '#FFFFFF' }
+                            : {}
+                        }>
+                        {isPremium ? <><CheckCircle2 size={14} /> Đang dùng</> : <><Plane size={14} /> Mua ngay</>}
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Payment guide */}
+              <div className="card p-6 mb-8">
+                <h3 className="font-display font-black text-base mb-4 flex items-center gap-2">
+                  <Shield size={15} style={{ color: GOLD }} /> Hướng dẫn thanh toán
+                </h3>
+                <div className="grid grid-cols-4 gap-4">
+                  {[
+                    { step: '01', title: 'Chọn gói',       desc: 'Chọn gói Premium phù hợp và nhấn Mua ngay'     },
+                    { step: '02', title: 'Quét mã QR',     desc: 'Dùng app ngân hàng quét mã VietQR TPBank'       },
+                    { step: '03', title: 'Nhập nội dung',  desc: 'Điền đúng mã nội dung theo tên tài khoản bạn'  },
+                    { step: '04', title: 'Chờ xác nhận',   desc: 'Admin xác nhận trong 24h, thường 30 phút'       },
+                  ].map(({ step, title, desc }) => (
+                    <div key={step} className="text-center">
+                      <div className="w-10 h-10 rounded-full flex items-center justify-center mx-auto mb-3 font-display font-black text-sm text-white"
+                           style={{ background: `linear-gradient(135deg, ${GOLD}, ${GOLD_B})` }}>
+                        {step}
+                      </div>
+                      <p className="font-bold text-sm text-gray-900 mb-1">{title}</p>
+                      <p className="text-xs text-gray-500 leading-relaxed">{desc}</p>
+                    </div>
+                  ))}
                 </div>
               </div>
-            ))}
-          </div>
 
-          {/* Payment guide */}
-          <div className="card p-6 mb-8">
-            <h3 className="font-display font-black text-base mb-4 flex items-center gap-2">
-              <Shield size={15} style={{ color: GOLD }} /> Hướng dẫn thanh toán
-            </h3>
-            <div className="grid grid-cols-4 gap-4">
-              {[
-                { step: '01', title: 'Chọn gói',       desc: 'Chọn gói Premium phù hợp và nhấn Mua ngay'     },
-                { step: '02', title: 'Quét mã QR',     desc: 'Dùng app ngân hàng quét mã VietQR TPBank'       },
-                { step: '03', title: 'Nhập nội dung',  desc: 'Điền đúng mã nội dung theo tên tài khoản bạn'  },
-                { step: '04', title: 'Chờ xác nhận',   desc: 'Admin xác nhận trong 24h, thường 30 phút'       },
-              ].map(({ step, title, desc }) => (
-                <div key={step} className="text-center">
-                  <div className="w-10 h-10 rounded-full flex items-center justify-center mx-auto mb-3 font-display font-black text-sm text-white"
-                       style={{ background: `linear-gradient(135deg, ${GOLD}, ${GOLD_B})` }}>
-                    {step}
-                  </div>
-                  <p className="font-bold text-sm text-gray-900 mb-1">{title}</p>
-                  <p className="text-xs text-gray-500 leading-relaxed">{desc}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Payment history */}
-          <PaymentHistory />
+              {/* Payment history */}
+              <PaymentHistory />
+            </>
+          )}
         </div>
       </div>
 
       {/* Payment modal */}
-      {selectedPlan && <PaymentModal plan={selectedPlan} onClose={() => setSelectedPlan(null)} />}
+      {!isIOS && selectedPlan && <PaymentModal plan={selectedPlan} onClose={() => setSelectedPlan(null)} />}
     </MainLayout>
   );
 }

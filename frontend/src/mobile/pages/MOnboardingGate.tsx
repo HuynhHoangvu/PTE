@@ -2,6 +2,7 @@ import React from "react";
 import { logoUrl } from "../../assets";
 
 const KEY_ONBOARDING = "fly_onboarding_v2";
+const KEY_TERMS_ACCEPTED = "fly_terms_accepted_v1";
 export const KEY_TARGET_SCORE = "fly_target_score";
 export const KEY_EXAM_DATE = "fly_exam_date";
 
@@ -12,7 +13,7 @@ export function useUserGoals() {
   };
 }
 
-type Phase = "splash" | "slides" | "personalize" | "done";
+type Phase = "splash" | "slides" | "personalize" | "consent" | "done";
 
 const SLIDES = [
   {
@@ -60,7 +61,8 @@ export function MOnboardingGate({ children }: { children: React.ReactNode }) {
     <div className="fixed inset-0 z-[999] overflow-hidden bg-black">
       {phase === "splash" && <SplashScreen onDone={() => setPhase("slides")} />}
       {phase === "slides" && <OnboardingSlides onDone={() => setPhase("personalize")} />}
-      {phase === "personalize" && <PersonalizeScreen onDone={finish} />}
+      {phase === "personalize" && <PersonalizeScreen onDone={() => setPhase("consent")} />}
+      {phase === "consent" && <ConsentScreen onDone={finish} />}
     </div>
   );
 }
@@ -292,6 +294,90 @@ function PersonalizeScreen({ onDone }: { onDone: () => void }) {
         <p className="text-center text-[11px] text-gray-300 pt-1">
           Bằng cách tiếp tục, bạn đồng ý với Điều khoản sử dụng & Chính sách Bảo mật của FLY Academic
         </p>
+      </div>
+    </div>
+  );
+}
+
+function ConsentScreen({ onDone }: { onDone: () => void }) {
+  const [agreeTerms, setAgreeTerms] = React.useState(false);
+  const [agreePrivacy, setAgreePrivacy] = React.useState(false);
+
+  const canContinue = agreeTerms && agreePrivacy;
+
+  const handleContinue = () => {
+    if (!canContinue) return;
+    localStorage.setItem(KEY_TERMS_ACCEPTED, "1");
+    onDone();
+  };
+
+  return (
+    <div
+      className="w-full h-full flex flex-col"
+      style={{ background: "linear-gradient(175deg, #fffdf8 0%, #fef9e7 100%)" }}
+    >
+      <div className="px-6 pt-16 pb-4 text-center">
+        <p className="text-3xl mb-3">📄</p>
+        <h2 className="font-display font-black text-2xl text-gray-900">
+          Đồng ý điều khoản sử dụng
+        </h2>
+        <p className="text-sm text-gray-500 mt-2">
+          Trước khi sử dụng ứng dụng, vui lòng đọc và xác nhận đồng ý các chính sách bên dưới.
+        </p>
+      </div>
+
+      <div className="flex-1 px-6 space-y-4">
+        <div className="m-card-elevated rounded-2xl bg-white p-5 space-y-4">
+          <button
+            onClick={() => window.location.href = "/terms"}
+            className="w-full text-left rounded-xl border border-gray-200 px-4 py-3 active:scale-[0.99] transition-all"
+          >
+            <p className="font-bold text-gray-900">Điều khoản sử dụng</p>
+            <p className="text-xs text-gray-500 mt-1">Xem chi tiết điều khoản của FLY Academic</p>
+          </button>
+
+          <button
+            onClick={() => window.location.href = "/privacy"}
+            className="w-full text-left rounded-xl border border-gray-200 px-4 py-3 active:scale-[0.99] transition-all"
+          >
+            <p className="font-bold text-gray-900">Chính sách quyền riêng tư</p>
+            <p className="text-xs text-gray-500 mt-1">Xem cách thu thập và sử dụng dữ liệu của bạn</p>
+          </button>
+
+          <label className="flex items-start gap-3 cursor-pointer">
+            <input
+              type="checkbox"
+              className="mt-1 w-4 h-4 accent-amber-500"
+              checked={agreeTerms}
+              onChange={(e) => setAgreeTerms(e.target.checked)}
+            />
+            <span className="text-sm text-gray-700 leading-relaxed">
+              Tôi đã đọc và đồng ý với <strong>Điều khoản sử dụng</strong>.
+            </span>
+          </label>
+
+          <label className="flex items-start gap-3 cursor-pointer">
+            <input
+              type="checkbox"
+              className="mt-1 w-4 h-4 accent-amber-500"
+              checked={agreePrivacy}
+              onChange={(e) => setAgreePrivacy(e.target.checked)}
+            />
+            <span className="text-sm text-gray-700 leading-relaxed">
+              Tôi đã đọc và đồng ý với <strong>Chính sách quyền riêng tư</strong>.
+            </span>
+          </label>
+        </div>
+      </div>
+
+      <div className="px-6 pb-10 pt-6">
+        <button
+          onClick={handleContinue}
+          disabled={!canContinue}
+          className="w-full min-h-[54px] rounded-2xl font-bold text-base bg-brand-gold text-white shadow-gold-sm active:scale-[0.97] transition-all disabled:opacity-40"
+        >
+          Đồng ý và tiếp tục
+        </button>
       </div>
     </div>
   );
