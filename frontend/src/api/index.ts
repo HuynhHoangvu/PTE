@@ -58,6 +58,7 @@ export const usersApi = {
   updateProfile: (data: { fullName?: string }) =>
     api.patch('/users/profile', data).then((r) => r.data),
   getLeaderboard: () => api.get('/users/leaderboard').then((r) => r.data),
+  deleteAccount: () => api.delete('/users/profile').then((r) => r.data),
 };
 
 // ── Questions ─────────────────────────────────────────────────────────────

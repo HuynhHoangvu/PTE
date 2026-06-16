@@ -6,6 +6,7 @@ import { useAuthStore } from "../../stores/authStore";
 import { MobileBackHeader } from "../layout/MobileShell";
 import { MButton, MBadge } from "../ui";
 import { clsx } from "clsx";
+import { Capacitor } from "@capacitor/core";
 
 const PLANS = [
   {
@@ -40,6 +41,7 @@ const PLANS = [
 export default function MPremiumPage() {
   const navigate = useNavigate();
   const { user } = useAuthStore();
+  const isIOS = Capacitor.getPlatform() === "ios";
 
   const payMutation = useMutation({
     mutationFn: (planIndex: number) => paymentsApi.createPayment(planIndex),
@@ -74,7 +76,18 @@ export default function MPremiumPage() {
           </div>
         </div>
 
-        {user?.plan === "premium" ? (
+        {isIOS ? (
+          <div className="m-card-elevated rounded-3xl p-6 text-center space-y-3 bg-white">
+            <p className="text-4xl">⭐</p>
+            <p className="font-display font-black text-lg text-gray-900">Quyền truy cập Premium đã mở!</p>
+            <p className="text-xs text-gray-500 leading-relaxed max-w-xs mx-auto">
+              Hệ thống đã kích hoạt toàn quyền ôn luyện nâng cao cho bạn. Bạn có thể sử dụng tất cả các bài thi thử, ngân hàng câu hỏi và chấm điểm AI hoàn toàn miễn phí.
+            </p>
+            <MButton variant="primary" fullWidth onClick={() => navigate(-1)}>
+              Bắt đầu học ngay
+            </MButton>
+          </div>
+        ) : user?.plan === "premium" ? (
           <div className="m-card-elevated rounded-2xl p-5 text-center">
             <p className="text-3xl mb-2">🎉</p>
             <p className="font-display font-bold text-lg text-gray-900">Bạn đang dùng Premium!</p>
@@ -99,7 +112,7 @@ export default function MPremiumPage() {
                   <div>
                     <p className="font-display font-black text-base text-gray-900">{plan.name}</p>
                     <div className="flex items-baseline gap-1 mt-0.5">
-                      <span className="font-display font-black text-2xl text-brand-gold">
+                       <span className="font-display font-black text-2xl text-brand-gold">
                         {plan.price}
                       </span>
                       <span className="text-xs text-gray-400">{plan.per}</span>
@@ -128,9 +141,11 @@ export default function MPremiumPage() {
           </div>
         )}
 
-        <p className="text-center text-xs text-gray-400">
-          Thanh toán an toàn · Hoàn tiền trong 7 ngày nếu không hài lòng
-        </p>
+        {!isIOS && (
+          <p className="text-center text-xs text-gray-400">
+            Thanh toán an toàn · Hoàn tiền trong 7 ngày nếu không hài lòng
+          </p>
+        )}
         <div className="h-4" />
       </div>
     </div>

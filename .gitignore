@@ -85,4 +85,5 @@ chrome-cdp-profile/
 frontend/*.jks
 frontend/android/*.jks
 frontend/android/key.properties
+*.p8
 .blackboxcli/

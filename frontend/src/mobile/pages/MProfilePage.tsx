@@ -9,12 +9,36 @@ import { MButton, MInput, MBadge, MProgressBar } from "../ui";
 import { setupSmartNotifications, cancelAllNotifications, isNotifSetup, getNotifHour, isNotifSupported } from "../../services/notifications";
 import { useUserGoals, KEY_TARGET_SCORE, KEY_EXAM_DATE } from "./MOnboardingGate";
 import { clsx } from "clsx";
+import { Capacitor } from "@capacitor/core";
 
 export default function MProfilePage() {
   const navigate = useNavigate();
   const { user, setUser, logout } = useAuthStore();
   const qc = useQueryClient();
   const [editing, setEditing] = React.useState(false);
+
+  const isIOS = Capacitor.getPlatform() === "ios";
+
+  const deleteMutation = useMutation({
+    mutationFn: () => usersApi.deleteAccount(),
+    onSuccess: () => {
+      logout();
+      navigate("/login", { replace: true });
+      alert("Tài khoản của bạn đã được xóa vĩnh viễn.");
+    },
+    onError: () => {
+      alert("Có lỗi xảy ra khi xóa tài khoản. Vui lòng thử lại sau.");
+    }
+  });
+
+  const handleDeleteAccount = () => {
+    const confirm = window.confirm(
+      "CẢNH BÁO: Bạn có chắc chắn muốn xóa tài khoản không? Hành động này sẽ xóa vĩnh viễn tài khoản của bạn cùng toàn bộ dữ liệu học tập và không thể hoàn tác."
+    );
+    if (confirm) {
+      deleteMutation.mutate();
+    }
+  };
   const [fullName, setFullName] = React.useState(user?.fullName || "");
 
   const { data: profile } = useQuery({ queryKey: ["profile"], queryFn: usersApi.getProfile });
@@ -200,7 +224,7 @@ export default function MProfilePage() {
         )}
 
         {/* Premium CTA */}
-        {user?.plan !== "premium" && (
+        {!isIOS && user?.plan !== "premium" && (
           <button
             onClick={() => navigate("/premium")}
             className="w-full rounded-2xl p-4 text-left relative overflow-hidden active:scale-[0.98] transition-transform"
@@ -358,9 +382,18 @@ export default function MProfilePage() {
         </div>
 
         {/* Logout */}
-        <MButton variant="danger" fullWidth onClick={handleLogout}>
-          Đăng xuất
-        </MButton>
+        <div className="space-y-2.5">
+          <MButton variant="danger" fullWidth onClick={handleLogout}>
+            Đăng xuất
+          </MButton>
+          <button
+            onClick={handleDeleteAccount}
+            disabled={deleteMutation.isPending}
+            className="w-full py-3 rounded-2xl text-xs font-bold text-red-500 bg-red-50/50 hover:bg-red-50 border border-red-100/50 active:scale-[0.98] transition-all flex items-center justify-center gap-1.5"
+          >
+            {deleteMutation.isPending ? "Đang xóa..." : "Xóa tài khoản"}
+          </button>
+        </div>
 
         <div className="flex flex-col items-center pb-2 gap-1">
           <img src={logoUrl} alt="FLY Academy" className="h-8 w-auto opacity-60" />
