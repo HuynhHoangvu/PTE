@@ -218,29 +218,7 @@ export default function MProfilePage() {
           </div>
         )}
 
-        {/* Premium CTA */}
-        {!isIOS && user?.plan !== "premium" && (
-          <button
-            onClick={() => navigate("/premium")}
-            className="w-full rounded-2xl p-4 text-left relative overflow-hidden active:scale-[0.98] transition-transform"
-            style={{ background: "linear-gradient(135deg, #1a1a1a 0%, #2a2a2a 100%)" }}
-          >
-            <div
-              className="absolute inset-0 opacity-[0.06] pointer-events-none"
-              style={{
-                backgroundImage: "radial-gradient(circle, #fdd52f 1px, transparent 1px)",
-                backgroundSize: "16px 16px",
-              }}
-            />
-            <p className="text-xs text-brand-gold-bright font-black uppercase tracking-wider mb-1">
-              ⭐ Nâng cấp Premium
-            </p>
-            <p className="font-display font-bold text-white text-sm">
-              Mở khoá toàn bộ nội dung & AI chấm không giới hạn
-            </p>
-            <p className="text-xs text-white/60 mt-1">Chạm để xem gói</p>
-          </button>
-        )}
+
 
         {/* Menu items */}
         <div className="m-card-elevated rounded-2xl overflow-hidden divide-y divide-gray-50">

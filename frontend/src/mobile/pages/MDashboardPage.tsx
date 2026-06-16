@@ -113,16 +113,6 @@ export default function MDashboardPage() {
       {/* ── Header ── */}
       <MobileHeader
         title={<img src={logoUrl} alt="FLY Academy" className="h-7 w-auto" />}
-        right={
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => navigate("/premium")}
-              className="bg-brand-gold text-white text-[10px] font-black uppercase tracking-wide px-3 py-1.5 rounded-xl"
-            >
-              Premium
-            </button>
-          </div>
-        }
       />
 
       <div className="px-4 space-y-4 pb-6">
