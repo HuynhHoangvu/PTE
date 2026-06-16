@@ -19,25 +19,20 @@ export default function MProfilePage() {
 
   const isIOS = Capacitor.getPlatform() === "ios";
 
+  const [deleteModalStep, setDeleteModalStep] = React.useState<'idle' | 'confirm' | 'deleting' | 'success' | 'error'>('idle');
+
   const deleteMutation = useMutation({
     mutationFn: () => usersApi.deleteAccount(),
     onSuccess: () => {
-      logout();
-      navigate("/login", { replace: true });
-      alert("Tài khoản của bạn đã được xóa vĩnh viễn.");
+      setDeleteModalStep('success');
     },
     onError: () => {
-      alert("Có lỗi xảy ra khi xóa tài khoản. Vui lòng thử lại sau.");
+      setDeleteModalStep('error');
     }
   });
 
   const handleDeleteAccount = () => {
-    const confirm = window.confirm(
-      "CẢNH BÁO: Bạn có chắc chắn muốn xóa tài khoản không? Hành động này sẽ xóa vĩnh viễn tài khoản của bạn cùng toàn bộ dữ liệu học tập và không thể hoàn tác."
-    );
-    if (confirm) {
-      deleteMutation.mutate();
-    }
+    setDeleteModalStep('confirm');
   };
   const [fullName, setFullName] = React.useState(user?.fullName || "");
 
@@ -401,6 +396,90 @@ export default function MProfilePage() {
         </div>
         <div className="h-4" />
       </div>
+
+      {deleteModalStep !== 'idle' && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-6 transition-opacity">
+          <div className="bg-white rounded-3xl p-6 w-full max-w-sm text-center shadow-2xl space-y-4 motion-safe:animate-fade-in-up">
+            
+            {deleteModalStep === 'confirm' && (
+              <>
+                <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mx-auto text-red-500 text-xl font-bold">
+                  ⚠️
+                </div>
+                <h3 className="font-display font-black text-lg text-gray-900">Xóa tài khoản?</h3>
+                <p className="text-xs text-gray-500 leading-relaxed max-w-xs mx-auto">
+                  Hành động này sẽ xóa vĩnh viễn tài khoản của bạn cùng toàn bộ tiến trình học tập, lịch sử thi thử và không thể hoàn tác.
+                </p>
+                <div className="flex gap-2.5 pt-2">
+                  <button
+                    onClick={() => setDeleteModalStep('idle')}
+                    className="flex-1 py-3 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold text-xs active:scale-95 transition-all"
+                  >
+                    Hủy bỏ
+                  </button>
+                  <button
+                    onClick={() => {
+                      setDeleteModalStep('deleting');
+                      deleteMutation.mutate();
+                    }}
+                    className="flex-1 py-3 rounded-xl bg-red-500 hover:bg-red-600 text-white font-bold text-xs active:scale-95 transition-all"
+                  >
+                    Xóa vĩnh viễn
+                  </button>
+                </div>
+              </>
+            )}
+
+            {deleteModalStep === 'deleting' && (
+              <div className="py-6 space-y-4">
+                <div className="w-8 h-8 border-3 border-red-500 border-t-transparent rounded-full animate-spin mx-auto" />
+                <p className="text-xs text-gray-500 font-bold">Đang xóa toàn bộ dữ liệu của bạn...</p>
+              </div>
+            )}
+
+            {deleteModalStep === 'success' && (
+              <>
+                <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mx-auto text-green-500 text-xl">
+                  ✅
+                </div>
+                <h3 className="font-display font-black text-lg text-gray-900">Đã xóa tài khoản</h3>
+                <p className="text-xs text-gray-500 leading-relaxed max-w-xs mx-auto">
+                  Tài khoản và dữ liệu học tập của bạn đã được xóa hoàn toàn khỏi hệ thống FLY Academy.
+                </p>
+                <button
+                  onClick={() => {
+                    setDeleteModalStep('idle');
+                    logout();
+                    navigate("/login", { replace: true });
+                  }}
+                  className="w-full py-3 rounded-xl bg-gray-900 hover:bg-black text-white font-bold text-xs active:scale-95 transition-all mt-2"
+                >
+                  Đồng ý
+                </button>
+              </>
+            )}
+
+            {deleteModalStep === 'error' && (
+              <>
+                <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mx-auto text-red-500 text-xl">
+                  ❌
+                </div>
+                <h3 className="font-display font-black text-lg text-gray-900">Lỗi hệ thống</h3>
+                <p className="text-xs text-gray-500 leading-relaxed max-w-xs mx-auto">
+                  Không thể thực hiện yêu cầu xóa tài khoản vào lúc này. Vui lòng liên hệ quản trị viên hoặc thử lại sau.
+                </p>
+                <button
+                  onClick={() => setDeleteModalStep('idle')}
+                  className="w-full py-3 rounded-xl bg-gray-900 hover:bg-black text-white font-bold text-xs active:scale-95 transition-all mt-2"
+                >
+                  Đóng
+                </button>
+              </>
+            )}
+
+          </div>
+        </div>
+      )}
     </>
   );
 }
