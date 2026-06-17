@@ -163,9 +163,6 @@ export default function MProfilePage() {
                   </p>
                   <p className="text-xs text-gray-400 truncate">{user?.email}</p>
                   <div className="flex items-center gap-2 mt-1.5">
-                    <MBadge color={user?.plan === "premium" ? "gold" : "gray"}>
-                      {user?.plan === "premium" ? "⭐ Premium" : "Free"}
-                    </MBadge>
                     {myRank > 0 && (
                       <MBadge color="green">#{myRank} BXH</MBadge>
                     )}

@@ -7,6 +7,7 @@ import { RecordingWaveform } from "./RecordingWaveform";
 import { useRecorder } from "../../../hooks/useRecorder";
 import { attemptsApi } from "../../../api";
 import { WordComparison } from "./WordComparison";
+import { AIConsentModal } from "../../ui/AIConsentModal";
 
 function TranscriptPreview({
   transcription,
@@ -133,6 +134,9 @@ export function MicSection({
     startAutoRecording,
     stopRecording,
     reset,
+    showConsentModal,
+    acceptConsent,
+    declineConsent,
   } = useRecorder({
     prepSeconds,
     maxSeconds,
@@ -320,6 +324,11 @@ export function MicSection({
         </div>
       )}
 
+      <AIConsentModal
+        isOpen={showConsentModal}
+        onAccept={acceptConsent}
+        onDecline={declineConsent}
+      />
     </div>
   );
 }

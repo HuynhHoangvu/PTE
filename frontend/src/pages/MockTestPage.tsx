@@ -9,6 +9,7 @@ import { Question, QUESTION_TYPE_LABELS } from '../types';
 import { useRecorder } from '../hooks/useRecorder';
 import { parseReadingFibDrag } from '../utils/readingFibDrag';
 import { parseListeningFibSegments } from '../utils/listeningFibSegments';
+import { AIConsentModal } from '../components/ui/AIConsentModal';
 
 // ── Mock Test Library Page ─────────────────────────────────────────────────
 export function MockTestPage() {
@@ -490,7 +491,7 @@ function ExamSpeakingSection({ question, currentAnswer, onAnswered }: {
 
   const showMic = !answered || reRecord;
 
-  const { state, elapsed, audioUrl, startRecording, stopRecording, reset } = useRecorder({
+  const { state, elapsed, audioUrl, startRecording, stopRecording, reset, showConsentModal, acceptConsent, declineConsent } = useRecorder({
     prepSeconds: 0,
     maxSeconds: question.responseTime || 40,
     onStop: async (blob: Blob, duration: number) => {
@@ -628,6 +629,12 @@ function ExamSpeakingSection({ question, currentAnswer, onAnswered }: {
           </div>
         </div>
       )}
+
+      <AIConsentModal
+        isOpen={showConsentModal}
+        onAccept={acceptConsent}
+        onDecline={declineConsent}
+      />
     </div>
   );
 }

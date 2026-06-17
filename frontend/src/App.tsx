@@ -19,7 +19,6 @@ import MQuestionPage from "./mobile/pages/MQuestionPage";
 import MMockTestPage from "./mobile/pages/MMockTestPage";
 import MProfilePage from "./mobile/pages/MProfilePage";
 import MBookmarksPage from "./mobile/pages/MBookmarksPage";
-import MPremiumPage from "./mobile/pages/MPremiumPage";
 import MAnalyticsPage from "./mobile/pages/MAnalyticsPage";
 import MQuestionListPage from "./mobile/pages/MQuestionListPage";
 import { MobileShell } from "./mobile/layout/MobileShell";
@@ -34,7 +33,6 @@ import QuestionPage from "./pages/QuestionPage";
 import { MockTestPage, MockTestExamPage } from "./pages/MockTestPage";
 import ProfilePage from "./pages/ProfilePage";
 import BookmarksPage from "./pages/BookmarksPage";
-import PremiumPage from "./pages/PremiumPage";
 import MockTestResultPage from "./pages/MockTestResultPage";
 import AdminPage from "./pages/AdminPage";
 
@@ -211,7 +209,6 @@ function AppContent() {
           <Route path="/practice/:skill/:type" element={<ProtectedRoute><ResponsiveRoute mobile={MQuestionListPage} desktop={SkillPage} /></ProtectedRoute>} />
           <Route path="/question/:id" element={<ProtectedRoute><ResponsiveRoute mobile={MQuestionPage} desktop={QuestionPage} /></ProtectedRoute>} />
           <Route path="/bookmarks" element={<ProtectedRoute><ResponsiveRoute mobile={MBookmarksPage} desktop={BookmarksPage} /></ProtectedRoute>} />
-          <Route path="/premium" element={<ProtectedRoute><ResponsiveRoute mobile={MPremiumPage} desktop={PremiumPage} /></ProtectedRoute>} />
           <Route path="/mock-test/result/:attemptId" element={<ProtectedRoute><MockTestResultPage /></ProtectedRoute>} />
           <Route path="/mock-test/:id" element={<ProtectedRoute><MockTestExamPage /></ProtectedRoute>} />
           <Route path="/admin" element={<ProtectedRoute><AdminPage /></ProtectedRoute>} />

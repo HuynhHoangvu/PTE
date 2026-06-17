@@ -70,7 +70,6 @@ const SKILL_NAV = [
 const SAVED_NAV = [{ label: "Đã lưu", icon: Bookmark, to: "/bookmarks" }];
 const BOTTOM_NAV = [
   { label: "Thi thử",  icon: ClipboardList, to: "/mock-test" },
-  { label: "Premium",  icon: Crown,         to: "/premium"   },
   { label: "Quản trị", icon: Settings2,     to: "/admin"     },
 ];
 
@@ -170,7 +169,7 @@ export function Sidebar({
       .join("")
       .toUpperCase() || "FA";
 
-  const isPremium = user?.plan === "premium";
+
 
   return (
     <>
@@ -271,15 +270,9 @@ export function Sidebar({
               <p className="text-[13px] font-bold text-white truncate">
                 {user?.fullName || "Học viên"}
               </p>
-              <div className="flex items-center gap-1 mt-0.5">
-                <Crown size={9} color={isPremium ? ACCENT : "#CBD5E1"} />
-                <span
-                  className="text-[10px] font-bold"
-                  style={{ color: isPremium ? ACCENT : "#E2E8F0" }}
-                >
-                  {isPremium ? "Premium" : "Free Plan"}
-                </span>
-              </div>
+              <p className="text-[10px] text-gray-400 truncate mt-0.5">
+                {user?.email}
+              </p>
             </div>
 
             <button

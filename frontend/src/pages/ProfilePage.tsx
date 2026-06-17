@@ -110,12 +110,6 @@ export default function ProfilePage() {
                     <h2 className="font-display font-black text-xl text-gray-900">{profile?.fullName || user?.fullName}</h2>
                     <p className="text-sm text-gray-400 mt-0.5">{profile?.email || user?.email}</p>
                     <div className="flex items-center gap-3 mt-3">
-                      <span className={clsx(
-                        'text-[10px] font-black px-2.5 py-1 rounded-lg uppercase',
-                        profile?.plan === 'premium' ? 'bg-brand-yellow text-brand-black' : 'bg-gray-100 text-gray-500'
-                      )}>
-                        {profile?.plan === 'premium' ? '⭐ Premium' : 'Free'}
-                      </span>
                       <span className="text-[10px] font-bold text-gray-500 bg-gray-100 px-2 py-1 rounded">
                         🔥 {profile?.streakDays || 0} ngày streak
                       </span>

@@ -14,12 +14,30 @@ export function useRecorder({ prepSeconds = 0, maxSeconds = 40, onStop }: UseRec
   const [elapsed, setElapsed] = useState(0);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [micError, setMicError] = useState<string | null>(null);
+  const [showConsentModal, setShowConsentModal] = useState(false);
+  const [pendingAction, setPendingAction] = useState<(() => void) | null>(null);
 
   const mediaRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const elapsedRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const startTimeRef = useRef<number>(0);
+
+  const acceptConsent = useCallback(() => {
+    localStorage.setItem('fly_ai_consent_accepted', 'true');
+    setShowConsentModal(false);
+    if (pendingAction) {
+      pendingAction();
+      setPendingAction(null);
+    }
+  }, [pendingAction]);
+
+  const declineConsent = useCallback(() => {
+    setShowConsentModal(false);
+    setPendingAction(null);
+    setMicError('Bạn cần đồng ý chia sẻ âm thanh với AI để thực hiện chấm điểm.');
+    setState('idle');
+  }, []);
 
   const playBeep = () => {
     try {
@@ -48,48 +66,68 @@ export function useRecorder({ prepSeconds = 0, maxSeconds = 40, onStop }: UseRec
   };
 
   const startRecording = useCallback(async () => {
-    clearTimers();
-    setMicError(null);
-    try {
-      if (!navigator.mediaDevices?.getUserMedia) {
-        setMicError('Trình duyệt không hỗ trợ ghi âm. Vui lòng cập nhật ứng dụng.');
+    const run = async () => {
+      clearTimers();
+      setMicError(null);
+      try {
+        if (!navigator.mediaDevices?.getUserMedia) {
+          setMicError('Trình duyệt không hỗ trợ ghi âm. Vui lòng cập nhật ứng dụng.');
+          setState('idle');
+          return;
+        }
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        chunksRef.current = [];
+        beginActualRecording(stream);
+      } catch (err: any) {
+        const name = err?.name || '';
+        if (name === 'NotAllowedError' || name === 'PermissionDeniedError') {
+          setMicError('Quyền microphone bị từ chối. Vào Cài đặt → Ứng dụng → Fly PTE → Quyền → bật Microphone.');
+        } else if (name === 'NotFoundError') {
+          setMicError('Không tìm thấy microphone trên thiết bị này.');
+        } else {
+          setMicError('Không thể mở microphone. Kiểm tra lại quyền trong Cài đặt.');
+        }
         setState('idle');
-        return;
       }
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      chunksRef.current = [];
-      beginActualRecording(stream);
-    } catch (err: any) {
-      const name = err?.name || '';
-      if (name === 'NotAllowedError' || name === 'PermissionDeniedError') {
-        setMicError('Quyền microphone bị từ chối. Vào Cài đặt → Ứng dụng → Fly PTE → Quyền → bật Microphone.');
-      } else if (name === 'NotFoundError') {
-        setMicError('Không tìm thấy microphone trên thiết bị này.');
-      } else {
-        setMicError('Không thể mở microphone. Kiểm tra lại quyền trong Cài đặt.');
-      }
-      setState('idle');
+    };
+
+    const hasConsent = localStorage.getItem('fly_ai_consent_accepted') === 'true';
+    if (hasConsent) {
+      await run();
+    } else {
+      setPendingAction(() => () => { void run(); });
+      setShowConsentModal(true);
     }
   }, []);
 
   const startAutoRecording = useCallback((currentState?: RecorderState) => {
     if (currentState === 'recording' || currentState === 'stopped') return;
-    clearTimers();
-    if (prepSeconds <= 0) {
-      void startRecording();
-      return;
-    }
-    setState('countdown');
-    setCountdown(prepSeconds);
-    let c = prepSeconds;
-    countdownRef.current = setInterval(() => {
-      c -= 1;
-      setCountdown(Math.max(c, 0));
-      if (c <= 0) {
-        if (countdownRef.current) clearInterval(countdownRef.current);
+    const run = () => {
+      clearTimers();
+      if (prepSeconds <= 0) {
         void startRecording();
+        return;
       }
-    }, 1000);
+      setState('countdown');
+      setCountdown(prepSeconds);
+      let c = prepSeconds;
+      countdownRef.current = setInterval(() => {
+        c -= 1;
+        setCountdown(Math.max(c, 0));
+        if (c <= 0) {
+          if (countdownRef.current) clearInterval(countdownRef.current);
+          void startRecording();
+        }
+      }, 1000);
+    };
+
+    const hasConsent = localStorage.getItem('fly_ai_consent_accepted') === 'true';
+    if (hasConsent) {
+      run();
+    } else {
+      setPendingAction(() => run);
+      setShowConsentModal(true);
+    }
   }, [prepSeconds, startRecording]);
 
   const beginActualRecording = (stream: MediaStream) => {
@@ -140,5 +178,5 @@ export function useRecorder({ prepSeconds = 0, maxSeconds = 40, onStop }: UseRec
 
   useEffect(() => () => clearTimers(), []);
 
-  return { state, countdown, elapsed, audioUrl, micError, startRecording, startAutoRecording, stopRecording, reset };
+  return { state, countdown, elapsed, audioUrl, micError, startRecording, startAutoRecording, stopRecording, reset, showConsentModal, acceptConsent, declineConsent };
 }
