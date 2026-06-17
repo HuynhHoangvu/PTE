@@ -87,3 +87,12 @@ frontend/android/*.jks
 frontend/android/key.properties
 *.p8
 .blackboxcli/
+
+# iOS signing files
+*.p12
+*.mobileprovision
+*.cer
+*.key
+*.pem
+*base64.txt
+*.certSigningRequest
