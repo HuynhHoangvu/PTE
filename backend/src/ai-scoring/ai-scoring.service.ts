@@ -268,6 +268,7 @@ IMPORTANT: Write feedback and tutor_tip as single-line strings (no raw line brea
     const raw = await this.callGemini(prompt, ['content', 'pronunciation', 'fluency'], {
       responseSchema: geminiSpeakingScoreSchema(),
       audio: audioBuffer ? { mimeType: 'audio/webm', data: audioBuffer.toString('base64') } : undefined,
+      maxOutputTokens: 4096,
     });
     const { scoreBreakdown, totalScore } = this.normalizeBreakdown(
       raw.scoreBreakdown || {},
@@ -323,6 +324,7 @@ IMPORTANT: Write feedback and tutor_tip as single-line strings (no raw line brea
     const raw = await this.callGemini(prompt, ['content', 'pronunciation', 'fluency'], {
       responseSchema: geminiSpeakingScoreSchema(),
       audio: audioBuffer ? { mimeType: 'audio/webm', data: audioBuffer.toString('base64') } : undefined,
+      maxOutputTokens: 4096,
     });
     const { scoreBreakdown, totalScore } = this.normalizeBreakdown(
       raw.scoreBreakdown || {},
@@ -379,6 +381,7 @@ IMPORTANT: Write feedback and tutor_tip as single-line strings (no raw line brea
     const raw = await this.callGemini(prompt, ['content', 'pronunciation', 'fluency'], {
       responseSchema: geminiSpeakingScoreSchema(),
       audio: audioBuffer ? { mimeType: 'audio/webm', data: audioBuffer.toString('base64') } : undefined,
+      maxOutputTokens: 4096,
     });
     const { scoreBreakdown, totalScore } = this.normalizeBreakdown(
       raw.scoreBreakdown || {},
