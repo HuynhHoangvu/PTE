@@ -120,7 +120,7 @@ export class AiScoringService {
 
     // Fallback to Gemini
     try {
-      const model = this.genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+      const model = this.genAI.getGenerativeModel({ model: 'gemini-3.5-flash' });
       const base64Audio = audioBuffer.toString('base64');
       const timeoutPromise = new Promise<never>((_, reject) =>
         setTimeout(() => reject(new Error('Transcription timeout after 60s')), 60000),
@@ -165,16 +165,16 @@ export class AiScoringService {
 
     switch (question.type) {
       case QuestionType.SPEAKING_READ_ALOUD:
-        return this.scoreReadAloud(question, transcription);
+        return this.scoreReadAloud(question, transcription, params.audioBuffer);
 
       case QuestionType.SPEAKING_REPEAT_SENTENCE:
-        return this.scoreRepeatSentence(question, transcription);
+        return this.scoreRepeatSentence(question, transcription, params.audioBuffer);
 
       case QuestionType.SPEAKING_DESCRIBE_IMAGE:
       case QuestionType.SPEAKING_RETELL_LECTURE:
       case QuestionType.SPEAKING_SUMMARISE_GROUP_DISCUSSION:
       case QuestionType.SPEAKING_RESPOND_TO_SITUATION:
-        return this.scoreSpeakingExtended(question, transcription, question.type);
+        return this.scoreSpeakingExtended(question, transcription, question.type, params.audioBuffer);
 
       case QuestionType.SPEAKING_ANSWER_SHORT_QUESTION:
         return this.scoreAnswerShortQuestion(question, transcription);
@@ -218,8 +218,13 @@ export class AiScoringService {
   }
 
   // ── Speaking: Read Aloud ─────────────────────────────────────────────────
-  private async scoreReadAloud(question: Question, transcription: string) {
+  private async scoreReadAloud(question: Question, transcription: string, audioBuffer?: Buffer) {
+    const listeningNote = audioBuffer
+      ? 'The student\'s audio recording is attached — listen to it and judge pronunciation and fluency from what you actually hear, not just the transcript (the transcript can miss accent/clarity/pausing issues).'
+      : 'No audio was available, so judge pronunciation and fluency as best as possible from the transcript alone (this is a weaker signal — default to a fair, average estimate rather than guessing extremes).';
     const prompt = `You are an expert PTE Academic coach AND phonetics tutor. Score this Read Aloud response and provide specific, actionable Vietnamese-language coaching.
+
+${listeningNote}
 
 Original text:
 <original_text>
@@ -262,6 +267,7 @@ IMPORTANT: Write feedback and tutor_tip as single-line strings (no raw line brea
 
     const raw = await this.callGemini(prompt, ['content', 'pronunciation', 'fluency'], {
       responseSchema: geminiSpeakingScoreSchema(),
+      audio: audioBuffer ? { mimeType: 'audio/webm', data: audioBuffer.toString('base64') } : undefined,
     });
     const { scoreBreakdown, totalScore } = this.normalizeBreakdown(
       raw.scoreBreakdown || {},
@@ -271,14 +277,19 @@ IMPORTANT: Write feedback and tutor_tip as single-line strings (no raw line brea
   }
 
   // ── Speaking: Repeat Sentence ─────────────────────────────────────────────
-  private async scoreRepeatSentence(question: Question, transcription: string) {
+  private async scoreRepeatSentence(question: Question, transcription: string, audioBuffer?: Buffer) {
     const ref =
       (typeof question.correctAnswer === 'string' && question.correctAnswer.trim()
         ? question.correctAnswer
         : '') ||
       question.suggestedAnswer?.trim() ||
       '';
+    const listeningNote = audioBuffer
+      ? 'The student\'s audio recording is attached — listen to it and judge pronunciation and fluency from what you actually hear, not just the transcript.'
+      : 'No audio was available, so judge pronunciation and fluency as best as possible from the transcript alone.';
     const prompt = `You are an expert PTE Academic coach. Score this Repeat Sentence response.
+
+${listeningNote}
 
 Original sentence:
 <original_text>
@@ -311,6 +322,7 @@ IMPORTANT: Write feedback and tutor_tip as single-line strings (no raw line brea
 
     const raw = await this.callGemini(prompt, ['content', 'pronunciation', 'fluency'], {
       responseSchema: geminiSpeakingScoreSchema(),
+      audio: audioBuffer ? { mimeType: 'audio/webm', data: audioBuffer.toString('base64') } : undefined,
     });
     const { scoreBreakdown, totalScore } = this.normalizeBreakdown(
       raw.scoreBreakdown || {},
@@ -320,7 +332,7 @@ IMPORTANT: Write feedback and tutor_tip as single-line strings (no raw line brea
   }
 
   // ── Speaking: Extended (Describe Image, Retell, SGD, RTS) ────────────────
-  private async scoreSpeakingExtended(question: Question, transcription: string, type: QuestionType) {
+  private async scoreSpeakingExtended(question: Question, transcription: string, type: QuestionType, audioBuffer?: Buffer) {
     const taskName = {
       [QuestionType.SPEAKING_DESCRIBE_IMAGE]: 'Describe Image',
       [QuestionType.SPEAKING_RETELL_LECTURE]: 'Retell Lecture',
@@ -328,7 +340,12 @@ IMPORTANT: Write feedback and tutor_tip as single-line strings (no raw line brea
       [QuestionType.SPEAKING_RESPOND_TO_SITUATION]: 'Respond to a Situation',
     }[type];
 
+    const listeningNote = audioBuffer
+      ? 'The student\'s audio recording is attached — listen to it and judge pronunciation and fluency from what you actually hear, not just the transcript.'
+      : 'No audio was available, so judge pronunciation and fluency as best as possible from the transcript alone.';
     const prompt = `You are an expert PTE Academic coach scoring a "${taskName}" response.
+
+${listeningNote}
 
 Question context:
 <original_text>
@@ -361,6 +378,7 @@ IMPORTANT: Write feedback and tutor_tip as single-line strings (no raw line brea
 
     const raw = await this.callGemini(prompt, ['content', 'pronunciation', 'fluency'], {
       responseSchema: geminiSpeakingScoreSchema(),
+      audio: audioBuffer ? { mimeType: 'audio/webm', data: audioBuffer.toString('base64') } : undefined,
     });
     const { scoreBreakdown, totalScore } = this.normalizeBreakdown(
       raw.scoreBreakdown || {},
@@ -449,8 +467,8 @@ ${textAnswer}
 </student_text>
 Word count: ${wordCount} (target: 5-75 words, 1 sentence). formOk=${formOk}.
 
-Score:
-1. content (0-4): Key ideas captured
+Score using the official PTE Academic rubric:
+1. content (0-2): Key ideas captured. 2=all main ideas, 1=some ideas, 0=off-topic or missing
 2. form (0-1): One sentence, 5-75 words. If formOk=false → form=0
 3. grammar (0-2): Grammatical accuracy
 4. vocabulary (0-2): Word choice precision
@@ -470,7 +488,7 @@ Return ONLY valid JSON:
     {"original": "studentWord", "better": "academicAlternative", "reason": "Why this word scores higher in Vietnamese"}
   ]
 }
-totalScore = content+form+grammar+vocabulary (max 9).
+totalScore = content+form+grammar+vocabulary (max 7).
 
 IMPORTANT: feedback, tutor_tip, and strings inside vocab_suggestions must be single-line (no raw line breaks inside JSON strings).`;
 
@@ -479,7 +497,7 @@ IMPORTANT: feedback, tutor_tip, and strings inside vocab_suggestions must be sin
     });
     const { scoreBreakdown, totalScore } = this.normalizeBreakdown(
       raw.scoreBreakdown || {},
-      { content: 4, form: 1, grammar: 2, vocabulary: 2 },
+      { content: 2, form: 1, grammar: 2, vocabulary: 2 },
     );
     return { ...raw, scoreBreakdown, totalScore };
   }
@@ -501,12 +519,12 @@ ${textAnswer}
 </student_text>
 Word count: ${wordCount} (target: 200-300). formOk=${formOk}.
 
-Score:
-1. content (0-6): Addresses prompt with relevant ideas
+Score using the official PTE Academic rubric:
+1. content (0-3): Addresses prompt with relevant ideas and supporting details
 2. form (0-2): 200-300 words. 2=ok, 1=slightly off, 0=far off. formOk=${formOk}
-3. structure (0-6): Organization, cohesion, paragraphs
+3. structure (0-2): Development, structure and coherence
 4. grammar (0-2): Grammatical range and accuracy
-5. linguistic (0-6): Language variety and precision
+5. linguistic (0-2): General linguistic range — variety and precision
 6. vocabulary (0-2): Breadth and appropriateness
 7. spelling (0-2): Spelling accuracy
 
@@ -528,7 +546,7 @@ Return ONLY valid JSON:
     {"original": "wordTheyUsed", "better": "betterAlternative", "reason": "Explanation in Vietnamese why this scores higher"}
   ]
 }
-totalScore = sum of all 7 criteria (max 26).
+totalScore = sum of all 7 criteria (max 15).
 
 IMPORTANT: feedback, tutor_tip, and strings inside vocab_suggestions must be single-line (no raw line breaks inside JSON strings).`;
 
@@ -538,7 +556,7 @@ IMPORTANT: feedback, tutor_tip, and strings inside vocab_suggestions must be sin
     });
     const { scoreBreakdown, totalScore } = this.normalizeBreakdown(
       raw.scoreBreakdown || {},
-      { content: 6, form: 2, structure: 6, grammar: 2, linguistic: 6, vocabulary: 2, spelling: 2 },
+      { content: 3, form: 2, structure: 2, grammar: 2, linguistic: 2, vocabulary: 2, spelling: 2 },
     );
     return { ...raw, scoreBreakdown, totalScore };
   }
@@ -746,24 +764,23 @@ ${textAnswer}
 </student_text>
 Word count: ${wordCount} (target 50-70 words)
 
-Score using PTE Core rubric:
-1. Content (0-4): Key ideas captured
-2. Form (0-2): Word count 50-70. formOk=${formOk}
+Score using the official PTE Academic rubric (same shape as Summarize Written Text — no separate spelling criterion):
+1. Content (0-2): Key ideas captured. 2=all main ideas, 1=some ideas, 0=off-topic or missing
+2. Form (0-1): 1 only if word count is 50-70. formOk=${formOk}
 3. Grammar (0-2): Sentence structure accuracy
 4. Vocabulary (0-2): Word choice
-5. Spelling (0-2): Spelling accuracy
 
-Return ONLY JSON: {"content": n, "grammar": n, "vocabulary": n, "spelling": n, "form": n, "feedback": "...", "totalScore": n}
-totalScore = sum of all five (max 12).
+Return ONLY JSON: {"content": n, "grammar": n, "vocabulary": n, "form": n, "feedback": "...", "totalScore": n}
+totalScore = sum of all four (max 7).
 
 IMPORTANT: feedback must be one single line (no raw line breaks inside the JSON string).`;
 
-    const raw = await this.callGemini(prompt, ['content', 'grammar', 'vocabulary', 'spelling', 'form'], {
+    const raw = await this.callGemini(prompt, ['content', 'grammar', 'vocabulary', 'form'], {
       responseSchema: geminiSstScoreSchema(),
     });
     const { scoreBreakdown, totalScore } = this.normalizeBreakdown(
       raw.scoreBreakdown || {},
-      { content: 4, form: 2, grammar: 2, vocabulary: 2, spelling: 2 },
+      { content: 2, form: 1, grammar: 2, vocabulary: 2 },
     );
     return { ...raw, scoreBreakdown, totalScore };
   }
@@ -805,10 +822,14 @@ IMPORTANT: feedback must be one single line (no raw line breaks inside the JSON 
   private async callGemini(
     prompt: string,
     breakdownKeys: string[],
-    options?: { responseSchema?: ObjectSchema; maxOutputTokens?: number },
+    options?: {
+      responseSchema?: ObjectSchema;
+      maxOutputTokens?: number;
+      audio?: { mimeType: string; data: string };
+    },
   ) {
     const model = this.genAI.getGenerativeModel({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-3.5-flash',
       generationConfig: {
         temperature: 0.2,
         maxOutputTokens: options?.maxOutputTokens ?? 2048,
@@ -817,6 +838,11 @@ IMPORTANT: feedback must be one single line (no raw line breaks inside the JSON 
       },
     });
 
+    const buildContent = (text: string) =>
+      options?.audio
+        ? [{ inlineData: { mimeType: options.audio.mimeType, data: options.audio.data } }, text]
+        : text;
+
     const timeoutPromise = new Promise<never>((_, reject) =>
       setTimeout(() => reject(new Error('Gemini API timeout after 60s')), 60000),
     );
@@ -824,7 +850,7 @@ IMPORTANT: feedback must be one single line (no raw line breaks inside the JSON 
     let json: any;
     let lastRawText = '';
     try {
-      const result = await Promise.race([model.generateContent(prompt), timeoutPromise]);
+      const result = await Promise.race([model.generateContent(buildContent(prompt)), timeoutPromise]);
       const text = result.response.text();
       lastRawText = text || '';
       json = this.parseGeminiJson(text);
@@ -833,7 +859,7 @@ IMPORTANT: feedback must be one single line (no raw line breaks inside the JSON 
       const retryPrompt = `${prompt}\n\nIMPORTANT: Return only a valid minified JSON object. No markdown, no explanations, no code fences.`;
       try {
         const retryResult = await Promise.race([
-          model.generateContent(retryPrompt),
+          model.generateContent(buildContent(retryPrompt)),
           timeoutPromise,
         ]);
         const retryText = retryResult.response.text();

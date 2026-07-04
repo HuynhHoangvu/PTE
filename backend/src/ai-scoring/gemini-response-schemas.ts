@@ -117,11 +117,10 @@ export function geminiSstScoreSchema(): ObjectSchema {
       content: { type: SchemaType.NUMBER },
       grammar: { type: SchemaType.NUMBER },
       vocabulary: { type: SchemaType.NUMBER },
-      spelling: { type: SchemaType.NUMBER },
       form: { type: SchemaType.NUMBER },
       totalScore: { type: SchemaType.NUMBER },
       feedback: { type: SchemaType.STRING },
     },
-    required: ['content', 'grammar', 'vocabulary', 'spelling', 'form', 'totalScore', 'feedback'],
+    required: ['content', 'grammar', 'vocabulary', 'form', 'totalScore', 'feedback'],
   };
 }

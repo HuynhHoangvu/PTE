@@ -24,10 +24,14 @@ export function DescribeImage({ question }: { question: Question }) {
   return (
     <div>
       <PracticeStepHint>Xem hình → Mô tả đủ ý bằng mic</PracticeStepHint>
-      <SpeakingPromptAudio question={question}>
-      {/* Mobile: ảnh gọn (max-height) để MicSection còn chỗ; desktop: layout 2 cột */}
+      {/* Mobile: ảnh gọn (max-height) để MicSection còn chỗ; desktop: layout 2 cột.
+          Vùng đọc (SpeakingPromptAudio) chỉ bọc cột ảnh — không có "đề" dạng chữ ở
+          đây nên chủ yếu để nhất quán, tránh bọc luôn MicSection (kết quả/nút bấm). */}
       <div className="flex flex-col lg:flex-row lg:min-h-0 gap-3 lg:gap-0">
-        <div className="px-3 pt-2 pb-1 sm:px-6 sm:py-5 lg:border-r lg:border-gray-100 lg:flex-[1.15] lg:min-w-0 flex flex-col">
+        <SpeakingPromptAudio
+          question={question}
+          className="px-3 pt-2 pb-1 sm:px-6 sm:py-5 lg:border-r lg:border-gray-100 lg:flex-[1.15] lg:min-w-0 flex flex-col"
+        >
           <div
             className="rounded-2xl border border-gray-200 bg-gray-50/90 p-1.5 sm:p-3 flex items-center justify-center
                        max-h-[38vh] sm:max-h-[48vh] overflow-auto
@@ -40,7 +44,7 @@ export function DescribeImage({ question }: { question: Question }) {
                          lg:max-h-[min(74vh,840px)]"
             />
           </div>
-        </div>
+        </SpeakingPromptAudio>
         <div className="w-full shrink-0 lg:flex-1 lg:min-w-[280px] lg:max-w-xl">
           <MicSection
             questionId={question.id}
@@ -68,7 +72,6 @@ export function DescribeImage({ question }: { question: Question }) {
           </div>
         </div>
       )}
-      </SpeakingPromptAudio>
     </div>
   );
 }

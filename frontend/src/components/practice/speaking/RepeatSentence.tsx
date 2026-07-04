@@ -123,8 +123,10 @@ export function RepeatSentence({ question }: { question: Question }) {
           </button>
         </div>
       )}
+      </SpeakingPromptAudio>
 
-      {/* Sẵn sàng ghi — MicSection autoStart ngay (prepSeconds=0) */}
+      {/* Sẵn sàng ghi — MicSection autoStart ngay (prepSeconds=0). Đặt ngoài
+          vùng SpeakingPromptAudio để bấm vào kết quả/so sánh không bị đọc nhầm. */}
       {phase === "ready" && (
         <MicSection
           questionId={question.id}
@@ -136,7 +138,6 @@ export function RepeatSentence({ question }: { question: Question }) {
           wordComparisonStatus={refForMic ? "enabled" : "required_but_missing"}
         />
       )}
-      </SpeakingPromptAudio>
     </PracticeContentFrame>
   );
 }

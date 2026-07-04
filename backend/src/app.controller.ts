@@ -22,7 +22,7 @@ export class AppController {
   getAppVersion() {
     return {
       minVersionCode: 1, // Minimum versionCode required to run the app
-      latestVersion: '1.0.9',
+      latestVersion: '1.1.0',
       forceUpdate: true,
       storeUrl: 'market://details?id=com.flyedu.pte',
       message: 'Có phiên bản ứng dụng mới. Vui lòng cập nhật để tiếp tục sử dụng các tính năng mới nhất!'

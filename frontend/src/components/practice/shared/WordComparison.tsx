@@ -21,12 +21,16 @@ const normWord = (s: string) =>
  * So khớp theo thứ tự: mỗi từ trong đáp án tìm lần lượt trong bản ghi (không dùng Set — tránh đếm trùng / sai thứ tự).
  */
 export function alignReferenceWordsOrdered(original: string, transcription: string) {
-  const origWords = original
-    .toLowerCase()
-    .replace(/[^a-z0-9\s']/g, " ")
+  // Giữ nguyên chữ hoa/dấu câu của bài gốc để hiển thị (dễ đọc hơn); chỉ dùng bản
+  // đã chuẩn hóa (normWord) để so khớp — 2 mảng luôn cùng độ dài, cùng chỉ số.
+  const origPairs = original
+    .trim()
     .split(/\s+/)
-    .map(normWord)
-    .filter(Boolean);
+    .filter(Boolean)
+    .map((raw) => ({ raw, norm: normWord(raw) }))
+    .filter((p) => p.norm); // bỏ token chỉ toàn dấu câu (vd "--"), không có gì để so khớp
+  const origRaw = origPairs.map((p) => p.raw);
+  const origWords = origPairs.map((p) => p.norm);
   const transWords = transcription
     .toLowerCase()
     .replace(/[^a-z0-9\s']/g, " ")
@@ -62,8 +66,8 @@ export function alignReferenceWordsOrdered(original: string, transcription: stri
     }
   }
 
-  const results = origWords.map((ow, idx) => ({
-    word: ow,
+  const results = origRaw.map((raw, idx) => ({
+    word: raw,
     correct: correctRef.has(idx),
   }));
 

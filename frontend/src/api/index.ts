@@ -169,4 +169,16 @@ export const adminApi = {
     api.patch(`/admin/mock-attempts/${attemptId}/score`, data).then((r) => r.data),
 };
 
+// ── Dictionary ────────────────────────────────────────────────────────────
+export interface DictionaryEntry {
+  word: string;
+  phonetic?: string;
+  meanings: { partOfSpeech: string; definitions: { definition: string; example?: string }[] }[];
+}
+
+export const dictionaryApi = {
+  lookup: (word: string): Promise<DictionaryEntry> =>
+    api.get(`/dictionary/${encodeURIComponent(word)}`).then((r) => r.data),
+};
+
 export default api;

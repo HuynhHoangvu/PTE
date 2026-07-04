@@ -3,6 +3,7 @@ import { Question } from "../../../types";
 import { MicSection } from "../shared/MicSection";
 import { PracticeContentFrame } from "../shared/PracticeContentFrame";
 import { SpeakingPromptAudio } from "../shared/SpeakingPromptAudio";
+import { SpeakableText } from "../shared/SpeakableText";
 import { getMaxScore } from "../../../constants/scoring";
 
 export function ReadAloud({
@@ -20,20 +21,22 @@ export function ReadAloud({
         extraEnglishParts={question.content ? [question.content] : []}
       >
         <div className="practice-passage-scroll">
-          <p className="practice-prose select-none">{question.content}</p>
+          <p className="practice-prose">
+            <SpeakableText text={question.content || ""} />
+          </p>
         </div>
-        <MicSection
-          questionId={question.id}
-          prepSeconds={question.prepTime || 40}
-          maxSeconds={question.responseTime || 40}
-          label="Hệ thống tự đếm ngược rồi ghi âm · bấm 🎙️ để ghi ngay không cần chờ"
-          originalText={question.content}
-          maxScore={getMaxScore(question.type)}
-          wordComparisonStatus={
-            question.content ? "enabled" : "required_but_missing"
-          }
-        />
       </SpeakingPromptAudio>
+      <MicSection
+        questionId={question.id}
+        prepSeconds={question.prepTime || 40}
+        maxSeconds={question.responseTime || 40}
+        label="Hệ thống tự đếm ngược rồi ghi âm · bấm 🎙️ để ghi ngay không cần chờ"
+        originalText={question.content}
+        maxScore={getMaxScore(question.type)}
+        wordComparisonStatus={
+          question.content ? "enabled" : "required_but_missing"
+        }
+      />
     </PracticeContentFrame>
   );
 }

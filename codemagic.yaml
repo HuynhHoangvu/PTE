@@ -6,6 +6,7 @@ workflows:
     environment:
       groups:
         - apple_credentials
+        - app_config
       node: latest
       xcode: latest
       cocoapods: default
@@ -22,8 +23,8 @@ workflows:
 
       - name: Create env file
         script: |
-          echo "VITE_API_BASE_URL=https://backend-production-29fd8.up.railway.app" > frontend/.env.production
-          echo "VITE_GOOGLE_CLIENT_ID=1002878505918-pvrkkjjs8lg8042arlusrlknigg6q63q.apps.googleusercontent.com" >> frontend/.env.production
+          echo "VITE_API_BASE_URL=$VITE_API_BASE_URL" > frontend/.env.production
+          echo "VITE_GOOGLE_CLIENT_ID=$VITE_GOOGLE_CLIENT_ID" >> frontend/.env.production
 
       - name: Build web app
         script: |
@@ -64,7 +65,7 @@ workflows:
               <key>method</key>
               <string>app-store</string>
               <key>teamID</key>
-              <string>6G2HP2S64D</string>
+              <string>$APPLE_TEAM_ID</string>
               <key>signingStyle</key>
               <string>automatic</string>
           </dict>
@@ -80,7 +81,7 @@ workflows:
             -authenticationKeyPath "$AUTH_KEY_PATH" \
             -authenticationKeyID "$APP_STORE_CONNECT_KEY_IDENTIFIER" \
             -authenticationKeyIssuerID "$APP_STORE_CONNECT_ISSUER_ID" \
-            DEVELOPMENT_TEAM="6G2HP2S64D"
+            DEVELOPMENT_TEAM="$APPLE_TEAM_ID"
 
           echo "=== 5. Xuất file IPA ==="
           xcodebuild -exportArchive \

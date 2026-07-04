@@ -15,7 +15,7 @@ from models import ScoreResult
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 _gemini_client = genai.Client(api_key=GEMINI_API_KEY)
-_FLASH = "gemini-2.5-flash"
+_FLASH = "gemini-3.5-flash"
 
 def _get_config(temperature: float = 0.3) -> genai_types.GenerateContentConfig:
     return genai_types.GenerateContentConfig(temperature=temperature)

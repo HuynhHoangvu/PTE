@@ -2,7 +2,7 @@
 # Same idea as: pg_dump ... > backup.sql && psql RAILWAY_URL < backup.sql
 #
 # Usage:
-#   $env:LOCAL_DATABASE_URL   = "postgresql://postgres:123456@127.0.0.1:5432/fly_edu"
+#   $env:LOCAL_DATABASE_URL   = "postgresql://postgres:yourpassword@127.0.0.1:5432/fly_edu"
 #   $env:RAILWAY_DATABASE_URL = "postgresql://..."   # hoặc REMOTE_DATABASE_URL
 #   .\scripts\sync-local-to-railway.ps1
 #

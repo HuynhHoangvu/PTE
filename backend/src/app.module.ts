@@ -11,6 +11,7 @@ import { AiScoringModule } from './ai-scoring/ai-scoring.module';
 import { StorageModule } from './common/storage/storage.module';
 import { AdminModule } from './admin/admin.module';
 import { PaymentsModule } from './payments/payments.module';
+import { DictionaryModule } from './dictionary/dictionary.module';
 import { Payment } from './payments/payment.entity';
 import { AutoSeedService } from './database/auto-seed.service';
 import { User } from './users/user.entity';
@@ -64,6 +65,7 @@ const isLocalPostgres = (): boolean => {
     AiScoringModule,
     AdminModule,
     PaymentsModule,
+    DictionaryModule,
   ],
   controllers: [AppController],
   providers: [AutoSeedService],

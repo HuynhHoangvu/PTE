@@ -4,6 +4,7 @@ import { AudioPlayer } from "../../ui";
 import { MicSection } from "../shared/MicSection";
 import { PracticeContentFrame } from "../shared/PracticeContentFrame";
 import { SpeakingPromptAudio } from "../shared/SpeakingPromptAudio";
+import { SpeakableText } from "../shared/SpeakableText";
 
 export function AudioWithMic({
   question,
@@ -47,7 +48,7 @@ export function AudioWithMic({
                   key={i}
                   className="text-[15px] sm:text-[15px] text-blue-950 leading-7 sm:leading-7 whitespace-pre-wrap break-words"
                 >
-                  {line}
+                  <SpeakableText text={line} />
                 </p>
               ) : null
             )}
@@ -68,13 +69,13 @@ export function AudioWithMic({
                 return (
                   <p key={i} className="text-[14px] sm:text-sm text-purple-900 leading-snug sm:leading-relaxed">
                     <span className="font-bold text-purple-700">[{match[1]}]</span>{" "}
-                    {match[2]}
+                    <SpeakableText text={match[2]} />
                   </p>
                 );
               }
               return line.trim() ? (
                 <p key={i} className="text-[14px] sm:text-sm text-purple-900 leading-snug sm:leading-relaxed">
-                  {line}
+                  <SpeakableText text={line} />
                 </p>
               ) : null;
             })}
@@ -104,11 +105,13 @@ export function AudioWithMic({
           )}
         </div>
       )}
+      </SpeakingPromptAudio>
 
       {/*
         MicSection LUÔN hiển thị — không ẩn dù đang phát audio.
         autoStart=audioEnded: khi audio kết thúc mới auto-countdown.
         Nhưng user vẫn có thể bấm mic thủ công bất kỳ lúc nào.
+        Đặt ngoài SpeakingPromptAudio để bấm vào kết quả/so sánh không bị đọc nhầm.
       */}
       <MicSection
         questionId={question.id}
@@ -133,7 +136,6 @@ export function AudioWithMic({
         }
         showSuggestedAfterScore={question.type !== "SPEAKING_ANSWER_SHORT_QUESTION"}
       />
-      </SpeakingPromptAudio>
     </PracticeContentFrame>
   );
 }

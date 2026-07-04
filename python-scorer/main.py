@@ -28,11 +28,7 @@ from services.speaking import (
     PHASE2_AVAILABLE, detect_voice_activity
 )
 from services.writing import score_swt, score_essay, score_sst, generate_sst_model_answer
-from services.others import (
-    score_fib, score_mcq_multiple, score_mcq_single,
-    score_reorder, score_highlight_incorrect, score_dictation,
-    find_incorrect_words, pick_smw_answer
-)
+from services.answer_key_helpers import find_incorrect_words, pick_smw_answer
 
 app = FastAPI(
     title="FlyEdu PTE AI Scorer",
@@ -64,72 +60,79 @@ async def health():
 
 
 
-# ── Master Scorer ─────────────────────────────────────────────────────────────
-async def score_attempt(req: ScoreRequest) -> ScoreResult:
-    q = req.question
-    qtype = req.question_type
-    transcription = ""
-    audio_buffer = None
+# ── Stage 1: decode audio + reject silence before spending a Whisper call ──────
+def _decode_and_check_audio(req: ScoreRequest, qtype: QuestionType) -> tuple:
+    """Returns (audio_buffer, early_reject). early_reject is a ScoreResult if the
+    audio contains no speech at all (speaking types only); otherwise None."""
+    if not req.audio_base64:
+        return None, None
 
-    if req.audio_base64:
+    try:
+        audio_bytes = base64.b64decode(_clean_base64_audio(req.audio_base64))
+        ext = {"audio/wav": ".wav", "audio/mp3": ".mp3"}.get(req.audio_mime, ".webm")
+        with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as tmp:
+            tmp.write(audio_bytes)
+            tmp_path = tmp.name
         try:
-            audio_b64_clean = _clean_base64_audio(req.audio_base64)
-            audio_bytes = base64.b64decode(audio_b64_clean)
-            ext = ".webm"
-            if req.audio_mime == "audio/wav": ext = ".wav"
-            elif req.audio_mime == "audio/mp3": ext = ".mp3"
-            with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as tmp:
-                tmp.write(audio_bytes)
-                tmp_path = tmp.name
-            try:
-                audio_data = _load_audio_as_float32(tmp_path, target_sr=16000)
-                sr = 16000
-                audio_buffer = audio_data.tobytes()
-                if PHASE2_AVAILABLE and qtype.startswith("SPEAKING_"):
-                    vad_result = detect_voice_activity(audio_data, sr, threshold_db=-55.0, min_duration_ms=200)
-                    if not vad_result.get("has_speech", False):
-                        return ScoreResult(
-                            total_score=0,
-                            score_breakdown=_speaking_breakdown(
-                                0,
-                                0,
-                                0,
-                                content_max=3 if qtype == QuestionType.SPEAKING_REPEAT_SENTENCE else 5,
-                            ),
-                            feedback="❌ No speech detected. Please try again.",
-                            transcription=""
-                        )
-            finally:
-                if os.path.exists(tmp_path): os.unlink(tmp_path)
-        except Exception as e:
-            logger.warning(f"Audio pre-processing warning: {e}")
-            audio_buffer = None
+            audio_data = _load_audio_as_float32(tmp_path, target_sr=16000)
+            audio_buffer = audio_data.tobytes()
+            if PHASE2_AVAILABLE and qtype.startswith("SPEAKING_"):
+                vad_result = detect_voice_activity(audio_data, sr=16000, threshold_db=-55.0, min_duration_ms=200)
+                if not vad_result.get("has_speech", False):
+                    early_reject = ScoreResult(
+                        total_score=0,
+                        score_breakdown=_speaking_breakdown(
+                            0, 0, 0,
+                            content_max=3 if qtype == QuestionType.SPEAKING_REPEAT_SENTENCE else 5,
+                        ),
+                        feedback="❌ No speech detected. Please try again.",
+                        transcription=""
+                    )
+                    return audio_buffer, early_reject
+            return audio_buffer, None
+        finally:
+            if os.path.exists(tmp_path):
+                os.unlink(tmp_path)
+    except Exception as e:
+        logger.warning(f"Audio pre-processing warning: {e}")
+        return None, None
 
-    trans_meta = {"avg_logprob": -0.5, "speech_duration": 0.0}
-    if req.audio_base64 and qtype.startswith("SPEAKING_"):
-        whisper_prompt = None
-        if qtype == QuestionType.SPEAKING_READ_ALOUD and q.content:
-            whisper_prompt = str(q.content).strip()
-        elif qtype == QuestionType.SPEAKING_REPEAT_SENTENCE:
-            ref = q.correct_answer or q.suggested_answer
-            if ref: whisper_prompt = str(ref).strip()
-        elif qtype == QuestionType.SPEAKING_ANSWER_SHORT_QUESTION and q.correct_answer:
-            raw = q.correct_answer
-            if isinstance(raw, (list, tuple)):
-                hints = [str(a) for a in raw if str(a).strip()]
-            elif isinstance(raw, str) and raw.strip():
-                hints = [raw.strip()]
-            else:
-                hints = []
-            if hints:
-                whisper_prompt = "PTE Answer Short Question. Expected answer: " + ", ".join(hints) + "."
-        trans_meta = await _transcribe_with_meta(
-            req.audio_base64, req.audio_mime or "audio/webm",
-            initial_prompt=whisper_prompt,
-            use_beam=qtype == QuestionType.SPEAKING_READ_ALOUD
-        )
-        transcription = trans_meta["text"]
 
+# ── Stage 2: transcribe (speaking types only) ─────────────────────────────────
+def _whisper_prompt_for(qtype: QuestionType, q) -> Optional[str]:
+    """Context hint fed to Whisper as initial_prompt — improves accuracy on short/tricky audio."""
+    if qtype == QuestionType.SPEAKING_READ_ALOUD and q.content:
+        return str(q.content).strip()
+    if qtype == QuestionType.SPEAKING_REPEAT_SENTENCE:
+        ref = q.correct_answer or q.suggested_answer
+        return str(ref).strip() if ref else None
+    if qtype == QuestionType.SPEAKING_ANSWER_SHORT_QUESTION and q.correct_answer:
+        raw = q.correct_answer
+        if isinstance(raw, (list, tuple)):
+            hints = [str(a) for a in raw if str(a).strip()]
+        elif isinstance(raw, str) and raw.strip():
+            hints = [raw.strip()]
+        else:
+            hints = []
+        return ("PTE Answer Short Question. Expected answer: " + ", ".join(hints) + ".") if hints else None
+    return None
+
+
+async def _transcribe_if_speaking(req: ScoreRequest, qtype: QuestionType) -> tuple:
+    """Returns (transcription, trans_meta). No-op (empty) for non-speaking types."""
+    if not (req.audio_base64 and qtype.startswith("SPEAKING_")):
+        return "", {"avg_logprob": -0.5, "speech_duration": 0.0}
+
+    trans_meta = await _transcribe_with_meta(
+        req.audio_base64, req.audio_mime or "audio/webm",
+        initial_prompt=_whisper_prompt_for(qtype, req.question),
+        use_beam=qtype == QuestionType.SPEAKING_READ_ALOUD,
+    )
+    return trans_meta["text"], trans_meta
+
+
+# ── Stage 3: dispatch to the right scorer ─────────────────────────────────────
+async def _score_speaking(qtype, q, transcription, audio_buffer, trans_meta, req):
     if qtype == QuestionType.SPEAKING_READ_ALOUD:
         return await score_read_aloud(q, transcription, req.duration_seconds or 40, audio_buffer, trans_meta["avg_logprob"], trans_meta["speech_duration"])
     if qtype == QuestionType.SPEAKING_REPEAT_SENTENCE:
@@ -140,25 +143,38 @@ async def score_attempt(req: ScoreRequest) -> ScoreResult:
         return await score_speaking_extended(q, transcription, qtype, req.duration_seconds or 40, audio_buffer, trans_meta.get("avg_logprob", -0.5))
     if qtype == QuestionType.SPEAKING_ANSWER_SHORT_QUESTION:
         return await score_answer_short_question(q, transcription, avg_logprob=trans_meta.get("avg_logprob", -0.5), no_speech_prob=trans_meta.get("no_speech_prob", 0.0))
-    if qtype == QuestionType.WRITING_SUMMARIZE_WRITTEN_TEXT:
-        return await score_swt(q, req.text_answer or "")
-    if qtype == QuestionType.WRITING_ESSAY:
-        return await score_essay(q, req.text_answer or "")
-    if qtype == QuestionType.LISTENING_SUMMARIZE_SPOKEN_TEXT:
-        return await score_sst(q, req.text_answer or "")
-    if qtype in (QuestionType.READING_FIB_R_W, QuestionType.READING_FIB_R, QuestionType.LISTENING_FIB_L):
-        return score_fib(q, req.selected_answers or {})
-    if qtype in (QuestionType.READING_MCQ_MULTIPLE_ANSWER, QuestionType.LISTENING_MCQ_MULTIPLE_ANSWER):
-        return score_mcq_multiple(q, req.selected_answers or [])
-    if qtype in (QuestionType.READING_MCQ_SINGLE_ANSWER, QuestionType.LISTENING_MCQ_SINGLE_ANSWER, QuestionType.LISTENING_HIGHLIGHT_CORRECT_SUMMARY, QuestionType.LISTENING_SELECT_MISSING_WORD):
-        return score_mcq_single(q, str(req.selected_answers or ""))
-    if qtype == QuestionType.READING_RE_ORDER_PARAGRAPH:
-        return score_reorder(q, req.selected_answers or [])
-    if qtype == QuestionType.LISTENING_HIGHLIGHT_INCORRECT_WORD:
-        return score_highlight_incorrect(q, req.selected_answers or [])
-    if qtype == QuestionType.LISTENING_DICTATION:
-        return score_dictation(q, req.text_answer or "")
+    return None
 
+
+# Writing / SST take a text answer only — no audio involved, so a flat map is enough.
+_TEXT_ANSWER_SCORERS = {
+    QuestionType.WRITING_SUMMARIZE_WRITTEN_TEXT: score_swt,
+    QuestionType.WRITING_ESSAY: score_essay,
+    QuestionType.LISTENING_SUMMARIZE_SPOKEN_TEXT: score_sst,
+}
+
+
+async def score_attempt(req: ScoreRequest) -> ScoreResult:
+    q = req.question
+    qtype = req.question_type
+
+    audio_buffer, early_reject = _decode_and_check_audio(req, qtype)
+    if early_reject:
+        return early_reject
+
+    transcription, trans_meta = await _transcribe_if_speaking(req, qtype)
+
+    speaking_result = await _score_speaking(qtype, q, transcription, audio_buffer, trans_meta, req)
+    if speaking_result is not None:
+        return speaking_result
+
+    text_scorer = _TEXT_ANSWER_SCORERS.get(qtype)
+    if text_scorer:
+        return await text_scorer(q, req.text_answer or "")
+
+    # MCQ / FIB / reorder / highlight-incorrect-word / dictation are scored
+    # deterministically on the backend (NestJS) directly and never reach this
+    # endpoint — see backend/src/questions/deterministic-types.ts.
     raise HTTPException(status_code=400, detail=f"Unsupported question type: {qtype}")
 
 

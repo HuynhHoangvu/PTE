@@ -3,22 +3,15 @@ import jiwer
 import numpy as np
 import tempfile
 import base64
-from typing import Optional, List, Any
-from core.utils import logger, _clean_text, _load_audio_as_float32, _normalize_audio_to_wav, _clean_base64_audio
+from typing import Optional
+from core.utils import logger, _clean_text, _normalize_audio_to_wav, _clean_base64_audio
 from core.whisper_engine import get_whisper_model
 from models import QuestionData, ScoreResult, QuestionType, PronunciationAssessmentResult
 import librosa
-import soundfile as sf
 
-# Phase 2: Acoustic Features
+# Voice activity detection (used for the "no speech at all" pre-check in main.py)
 try:
-    from core.acoustic_features import (
-        detect_voice_activity,
-        detect_pauses,
-        calculate_wpm_syllable_based,
-        extract_f0_pitch,
-        score_fluency_phase2
-    )
+    from core.acoustic_features import detect_voice_activity
     PHASE2_AVAILABLE = True
 except ImportError:
     PHASE2_AVAILABLE = False
@@ -167,45 +160,6 @@ def _estimate_wpm(transcription: str, duration: float) -> float:
     return (len(words) / duration) * 60
 
 
-def _get_word_alignment(ref_text: str, hyp_text: str) -> dict:
-    from difflib import SequenceMatcher
-    ref_words = ref_text.split()
-    hyp_words = hyp_text.split()
-    matcher = SequenceMatcher(None, ref_words, hyp_words)
-    correct_words = []
-    wrong_words = []
-    for tag, i1, i2, j1, j2 in matcher.get_opcodes():
-        if tag == 'equal':
-            correct_words.extend(ref_words[i1:i2])
-        else:
-            wrong_words.extend(hyp_words[j1:j2])
-    return {
-        "correct_count": len(correct_words),
-        "wrong_count": len(wrong_words),
-        "correct_words": correct_words,
-        "wrong_words": wrong_words
-    }
-
-
-def _detect_repetitions(ref_words: list, hyp_words: list) -> dict:
-    from collections import Counter
-    repetitions = []
-    hyp_word_counts = Counter(hyp_words)
-    ref_word_set = set(ref_words)
-    for word, count in hyp_word_counts.items():
-        if word not in ref_word_set and count > 1:
-            repetitions.append({"word": word, "extra_count": count - 1})
-    return {
-        "repetitions": repetitions,
-        "total_repetitions": sum(rep["extra_count"] for rep in repetitions)
-    }
-
-
-def _detect_hesitations_from_wer(ref_words: list, hyp_words: list) -> int:
-    word_diff = max(0, len(ref_words) - len(hyp_words))
-    return max(0, word_diff // 3)
-
-
 def _score_content_repeat_sentence(accuracy_pct: float) -> int:
     if accuracy_pct >= 100: return 3
     elif accuracy_pct >= 50: return 2
@@ -235,18 +189,6 @@ def _score_fluency_repeat_sentence(wpm: float, hesitation_count: int = 0, audio_
     return max(0, round(score))
 
 
-def _score_pronunciation_repeat_sentence(confidence_scores: list) -> int:
-    if not confidence_scores: return 0
-    good_count = sum(1 for s in confidence_scores if s > 0.8)
-    total = len(confidence_scores)
-    good_pct = (good_count / total) * 100 if total > 0 else 0
-    if good_pct >= 70: return 5
-    elif good_pct >= 50: return 4
-    elif good_pct >= 30: return 3
-    elif good_pct >= 20: return 2
-    else: return 1
-
-
 def _detect_hallucination(transcription: str, avg_logprob: float = -0.5) -> dict:
     """
     Phát hiện ảo giác (Hallucination) của Whisper.
@@ -259,63 +201,27 @@ def _detect_hallucination(transcription: str, avg_logprob: float = -0.5) -> dict
         "severity": "none" | "low" | "medium" | "high"
     }
     """
+    # Chỉ dựa vào 2 tín hiệu thật có thể tin cậy được:
+    # (1) ký tự non-ASCII lẫn vào — audio PTE luôn là tiếng Anh, nên chữ Hán/Nhật/emoji
+    #     xuất hiện gần như chắc chắn là Whisper "bịa" ra khi không nghe rõ.
+    # (2) avg_logprob — độ tự tin của chính Whisper khi decode; thấp bất thường
+    #     nghĩa là model cũng không chắc mình nghe đúng.
+    # (Đã bỏ danh sách từ khóa/whitelist từ vựng cứng vì đó là đoán mò, không phải tín hiệu thật.)
     reasons = []
     confidence = 0
-    
-    # 1. Kiểm tra ký tự non-ASCII (chữ Hán, Nhật, emoji, v.v.)
+
     non_ascii_count = sum(1 for c in transcription if ord(c) > 127)
     if non_ascii_count > 0:
         reasons.append(f"Non-ASCII characters detected: {non_ascii_count}")
         confidence += 40
-    
-    # 2. Kiểm tra avg_logprob - nếu quá thấp, rất có thể là ảo giác
+
     if avg_logprob < -1.0:
         reasons.append(f"Very low Whisper confidence (avg_logprob={avg_logprob:.2f})")
         confidence += 35
     elif avg_logprob < -0.8:
         reasons.append(f"Low Whisper confidence (avg_logprob={avg_logprob:.2f})")
         confidence += 15
-    
-    # 3. Kiểm tra những từ thường xuất hiện khi ảo giác
-    # (giả sử những từ ngẫu nhiên, chuyên ngành غريبة vô lý)
-    hallucination_patterns = [
-        r'\bvillagers\b',  # thường xuất hiện
-        r'\bparticle\b',   # không hợp lý trong describe image
-        r'\bflying\b.*\bcar\b',
-        r'懂|哈|的|是|了',  # chữ Hán thường bị Whisper ghép vào tiếng Anh khi confusion
-    ]
-    
-    import re
-    for pattern in hallucination_patterns:
-        if re.search(pattern, transcription, re.IGNORECASE):
-            reasons.append(f"Suspicious phrase/pattern detected: {pattern}")
-            confidence += 10
-    
-    # 4. Kiểm tra tỉ lệ từ lạ (từ có > 1 chữ cái nhưng không phải từ thông dụng)
-    words = transcription.lower().split()
-    english_vocab = {
-        "the", "a", "and", "or", "but", "in", "on", "at", "to", "for", "of",
-        "is", "are", "was", "were", "be", "been", "being",
-        "have", "has", "had", "do", "does", "did",
-        "big", "small", "pretty", "image", "show", "here", "there",
-        "people", "person", "man", "woman", "boy", "girl", "child",
-        "bicycle", "bike", "car", "vehicle", "road", "street", "village", "town",
-        "river", "water", "tree", "plant", "flower", "animal", "dog", "cat"
-    }
-    
-    strange_word_count = 0
-    for word in words:
-        if len(word) > 2 and word not in english_vocab and not word.isdigit():
-            # Nếu không phải từ phổ biến, tăng đếm
-            if not any(c.isalpha() for c in word[-2:]):  # Từ kết thúc lạ
-                strange_word_count += 1
-    
-    if len(words) > 5:
-        strange_ratio = strange_word_count / len(words)
-        if strange_ratio > 0.4:
-            reasons.append(f"High ratio of non-standard words: {strange_ratio:.1%}")
-            confidence += 20
-    
+
     # Xác định mức độ severity
     is_hallucinating = confidence > 45
     if confidence >= 75:
@@ -335,68 +241,6 @@ def _detect_hallucination(transcription: str, avg_logprob: float = -0.5) -> dict
         "non_ascii_count": non_ascii_count,
         "avg_logprob": avg_logprob
     }
-
-
-def _word_to_phonemes(word: str) -> list:
-    try:
-        from g2p_en import G2p
-        g2p = G2p()
-        phonemes = g2p(word)
-        return [p for p in phonemes if p not in [' ', '']]
-    except:
-        word_lower = word.lower()
-        phonemes = []
-        if 'th' in word_lower: phonemes.append('TH')
-        if any(c in word_lower for c in 'aeiou'): phonemes.extend(['V'] * sum(1 for c in word_lower if c in 'aeiou'))
-        if any(c in word_lower for c in 'bcdfghjklmnpqrstvwxyz'): phonemes.extend(['C'] * sum(1 for c in word_lower if c in 'bcdfghjklmnpqrstvwxyz'))
-        return phonemes if phonemes else ['UNK']
-
-
-def _extract_mfcc_features(audio_buffer: bytes, sr: int = 16000) -> dict:
-    try:
-        audio_data = np.frombuffer(audio_buffer, dtype=np.float32)
-        mfcc = librosa.feature.mfcc(y=audio_data, sr=sr, n_mfcc=13)
-        energy = librosa.feature.rms(y=audio_data, frame_length=2048)
-        vad = (energy[0] / (np.max(energy) + 1e-6) > 0.1).astype(int)
-        return {"mfcc": mfcc, "energy": energy[0], "vad": vad, "sr": sr}
-    except: return {}
-
-
-def _compute_llr_confidence(audio_buffer: bytes, word: str, word_index: int, total_words: int) -> float:
-    try:
-        if not audio_buffer: return 0.5
-        features = _extract_mfcc_features(audio_buffer)
-        if not features: return 0.5
-        mfcc, energy, vad = features["mfcc"], features["energy"], features["vad"]
-        n_frames = mfcc.shape[1]
-        frame_per_word = max(1, n_frames // max(1, total_words))
-        start, end = word_index * frame_per_word, min((word_index + 1) * frame_per_word, n_frames)
-        if start >= end: return 0.5
-        seg_vad = vad[start:end]
-        if (np.sum(seg_vad) / len(seg_vad) if len(seg_vad) > 0 else 0) < 0.3: return 0.3
-        seg_mfcc = mfcc[:, start:end]
-        if seg_mfcc.shape[1] > 1:
-            mfcc_var_mean = np.mean(np.var(seg_mfcc, axis=1))
-            if mfcc_var_mean < 0.05: confidence = 0.4
-            elif mfcc_var_mean > 3.0: confidence = 0.3
-            else: confidence = 0.7 + 0.2 * (1 - (mfcc_var_mean / 2.0))
-        else: confidence = 0.6
-        return max(0.1, min(0.95, confidence))
-    except: return 0.5
-
-
-def _estimate_phoneme_confidences(transcription: str, audio_buffer: Optional[bytes] = None) -> list:
-    words = transcription.split()
-    confidences = []
-    if audio_buffer and PHASE2_AVAILABLE:
-        try:
-            for idx, word in enumerate(words):
-                confidences.append(_compute_llr_confidence(audio_buffer, word, idx, len(words)))
-            return confidences
-        except: pass
-    for word in words:
-        confidences.append(0.7)
-    return confidences
 
 
 def _extract_keywords(text: str) -> set:
@@ -446,6 +290,15 @@ def _count_mid_speech_pauses(audio_buffer: bytes, sr: int = 16000, pause_thresho
         logger.warning(f"Failed to count mid-speech pauses: {e}")
         return 0
 
+
+def _apply_pause_penalty(fluency_score: int, audio_buffer: Optional[bytes]) -> int:
+    """Trừ điểm fluency theo số lần dừng ≥2s giữa câu, dùng chung cho mọi loại câu hỏi speaking."""
+    if not audio_buffer:
+        return fluency_score
+    pause_count = _count_mid_speech_pauses(audio_buffer, pause_threshold_sec=2.0)
+    if pause_count > 0:
+        fluency_score = max(0, fluency_score - pause_count)
+    return fluency_score
 
 
 async def _transcribe_with_meta(audio_base64: str, mime_type: str, initial_prompt: str = None, use_beam: bool = False) -> dict:
@@ -529,20 +382,13 @@ async def score_read_aloud(q: QuestionData, transcription: str, duration: float,
     else:                    max_fluency = 1
     fluency_score = min(fluency_score, max_fluency)
 
-    feedback_msg = (
-        f"Scored (PTE-style): Content {content_score}/5 ({content_pct:.0f}% coverage), "
-        f"Pronunciation {pronunciation_score}/5, Oral Fluency {fluency_score}/5."
-    )
-    if audio_buffer:
-        pause_count = _count_mid_speech_pauses(audio_buffer, pause_threshold_sec=2.0)
-        if pause_count > 0:
-            fluency_score = max(0, fluency_score - pause_count)
-            feedback_msg += f" ⚠️ Fluency -{pause_count} (paused {pause_count}× ≥2s mid-speech)."
+    
+    fluency_score = _apply_pause_penalty(fluency_score, audio_buffer)
 
     total_score = content_score + pronunciation_score + fluency_score
     breakdown = _speaking_breakdown(content_score, pronunciation_score, fluency_score)
 
-    return ScoreResult(total_score=total_score, score_breakdown=breakdown, feedback=feedback_msg, transcription=transcription)
+    return ScoreResult(total_score=total_score, score_breakdown=breakdown, transcription=transcription)
 
 
 async def score_repeat_sentence(q: QuestionData, transcription: str, duration: float, audio_buffer: Optional[bytes] = None, avg_logprob: float = -0.5) -> ScoreResult:
@@ -555,24 +401,19 @@ async def score_repeat_sentence(q: QuestionData, transcription: str, duration: f
     
     wer = jiwer.wer(clean_ref, clean_rec)
     content_score = _score_content_repeat_sentence(max(0, (1 - wer) * 100))
-    
-    conf_scores = _estimate_phoneme_confidences(transcription, audio_buffer)
-    pron_score_acoustic = _score_pronunciation_repeat_sentence(conf_scores)
-    pron_score_fallback = _score_pronunciation_pte((avg_logprob + 1.0))
-    pronunciation_score = max(pron_score_acoustic, min(4, pron_score_fallback)) if pron_score_acoustic < 2 else pron_score_acoustic
-    
+
+    # Pronunciation proxy: Whisper's own decoding confidence (avg_logprob).
+    # There is no real phoneme-level pronunciation model here — this is an
+    # honest best-effort signal, not a claim of PTE-grade acoustic scoring.
+    pronunciation_score = _score_pronunciation_pte(avg_logprob + 1.0)
+
     wpm = _estimate_wpm(transcription, duration)
     fluency_score = _score_fluency_repeat_sentence(wpm)
-    
-    feedback_msg = "Scored."
-    if audio_buffer:
-        pause_count = _count_mid_speech_pauses(audio_buffer, pause_threshold_sec=2.0)
-        if pause_count > 0:
-            fluency_score = max(0, fluency_score - pause_count)
-            feedback_msg += f" ⚠️ Fluency -{pause_count} (paused {pause_count}× ≥2s mid-speech)."
+
+    fluency_score = _apply_pause_penalty(fluency_score, audio_buffer)
 
     total_score = content_score + pronunciation_score + fluency_score
-    return ScoreResult(total_score=total_score, score_breakdown=_speaking_breakdown(content_score, pronunciation_score, fluency_score, content_max=3), feedback=feedback_msg, transcription=transcription)
+    return ScoreResult(total_score=total_score, score_breakdown=_speaking_breakdown(content_score, pronunciation_score, fluency_score, content_max=3), transcription=transcription)
 
 
 async def score_speaking_extended(q: QuestionData, transcription: str, qtype: QuestionType, duration: float, audio_buffer: Optional[bytes] = None, avg_logprob: float = -0.5) -> ScoreResult:
@@ -585,8 +426,6 @@ async def score_speaking_extended(q: QuestionData, transcription: str, qtype: Qu
         ref_source = " ".join(map(str, ref_source))
     elif isinstance(ref_source, dict):
         ref_source = " ".join(map(str, ref_source.values()))
-    
-    feedback_msg = "Scored based on 5-point scale per criterion."
     
     # ────────────────────────────────────────────────────────────────────
     # RETELL LECTURE: Dùng WER (Word Error Rate) - strict scoring
@@ -611,20 +450,15 @@ async def score_speaking_extended(q: QuestionData, transcription: str, qtype: Qu
         fluency_score = _score_fluency_pte(wpm)
         pronunciation_score = _score_pronunciation_describe_image(avg_logprob)
         
-        if audio_buffer:
-            pause_count = _count_mid_speech_pauses(audio_buffer, pause_threshold_sec=2.0)
-            if pause_count > 0:
-                fluency_score = max(0, fluency_score - pause_count)
-                feedback_msg += f" ⚠️ Fluency -{pause_count} (paused {pause_count}× ≥2s mid-speech)."
+        fluency_score = _apply_pause_penalty(fluency_score, audio_buffer)
 
         total = content_score + fluency_score + pronunciation_score
         return ScoreResult(
             total_score=total,
             score_breakdown=_speaking_breakdown(content_score, pronunciation_score, fluency_score),
-            feedback=feedback_msg,
             transcription=transcription
         )
-    
+
     # ────────────────────────────────────────────────────────────────────
     # DESCRIBE IMAGE, RESPOND TO SITUATION, etc: Dùng keyword matching (lenient)
     # ────────────────────────────────────────────────────────────────────
@@ -655,22 +489,15 @@ async def score_speaking_extended(q: QuestionData, transcription: str, qtype: Qu
     if hallucination_info["is_hallucinating"] and pronunciation_score == 0 and hallucination_info["severity"] in ["high", "medium"]:
         original_content = content_score
         content_score = min(1, content_score)
-        
         reasons = "; ".join(hallucination_info["reasons"][:2])
-        feedback_msg += f"\n⚠️ Hallucination detected ({hallucination_info['severity']}): {reasons}. Content score capped to prevent false positives."
-        logger.warning(f"Hallucination warning: {hallucination_info['severity']} severity. Content reduced from {original_content} to {content_score}")
-    
-    if audio_buffer:
-        pause_count = _count_mid_speech_pauses(audio_buffer, pause_threshold_sec=2.0)
-        if pause_count > 0:
-            fluency_score = max(0, fluency_score - pause_count)
-            feedback_msg += f" ⚠️ Fluency -{pause_count} (paused {pause_count}× ≥2s mid-speech)."
+        logger.warning(f"Hallucination warning: {hallucination_info['severity']} severity ({reasons}). Content reduced from {original_content} to {content_score}")
+
+    fluency_score = _apply_pause_penalty(fluency_score, audio_buffer)
 
     total = content_score + fluency_score + pronunciation_score
     return ScoreResult(
-        total_score=total, 
-        score_breakdown=_speaking_breakdown(content_score, pronunciation_score, fluency_score), 
-        feedback=feedback_msg, 
+        total_score=total,
+        score_breakdown=_speaking_breakdown(content_score, pronunciation_score, fluency_score),
         transcription=transcription
     )
 
@@ -712,18 +539,12 @@ async def score_summarise_group_discussion(q: QuestionData, transcription: str, 
     # Pronunciation
     pronunciation_score = _score_pronunciation_describe_image(avg_logprob)
 
-    feedback_msg = "Scored."
-    if audio_buffer:
-        pause_count = _count_mid_speech_pauses(audio_buffer, pause_threshold_sec=2.0)
-        if pause_count > 0:
-            fluency_score = max(0, fluency_score - pause_count)
-            feedback_msg += f" ⚠️ Fluency -{pause_count} (paused {pause_count}× ≥2s mid-speech)."
+    fluency_score = _apply_pause_penalty(fluency_score, audio_buffer)
 
     total = content_score + fluency_score + pronunciation_score
     return ScoreResult(
         total_score=total,
         score_breakdown=_speaking_breakdown(content_score, pronunciation_score, fluency_score),
-        feedback=feedback_msg,
         transcription=transcription,
     )
 
@@ -734,7 +555,7 @@ async def score_answer_short_question(q: QuestionData, transcription: str, avg_l
         return ScoreResult(
             total_score=0,
             score_breakdown={"content": 0},
-            feedback="❌ Could not recognise speech clearly. Please speak louder or closer to the microphone.",
+            feedback="Could not recognise speech clearly. Please speak louder or closer to the microphone.",
             transcription=transcription
         )
     clean_user = _clean_text(transcription)

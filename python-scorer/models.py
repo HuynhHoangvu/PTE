@@ -56,7 +56,7 @@ class ScoreRequest(BaseModel):
 class ScoreResult(BaseModel):
     total_score: int
     score_breakdown: dict
-    feedback: str
+    feedback: str = ""
     transcription: Optional[str] = None
 
 

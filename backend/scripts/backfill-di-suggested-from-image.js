@@ -19,7 +19,7 @@ if (!process.env.GEMINI_API_KEY) {
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 // Sử dụng flash cho tốc độ xử lý nhanh, giá rẻ và đủ thông minh để Describe Image
-const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+const model = genAI.getGenerativeModel({ model: "gemini-3.5-flash" });
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));

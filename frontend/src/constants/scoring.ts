@@ -11,12 +11,12 @@
  *   Describe Image / Retell / Summarize group / Respond to situation  max 15 mỗi dạng
  *   Answer Short Question      max 1
  *
- * WRITING
- *   Summarize Written Text     max 9   (content 4 + form 1 + grammar 2 + vocab 2)
- *   Write Essay                max 26
+ * WRITING (thang điểm chính thức PTE Academic — không phải PTE Core, PTE Core không có Write Essay)
+ *   Summarize Written Text     max 7   (content 2 + form 1 + grammar 2 + vocab 2)
+ *   Write Essay                max 15  (content 3 + form 2 + structure 2 + grammar 2 + linguistic 2 + vocab 2 + spelling 2)
  *
  * LISTENING
- *   Summarize Spoken Text      max 12
+ *   Summarize Spoken Text      max 7   (content 2 + form 1 + grammar 2 + vocab 2 — cùng dạng SWT, không có spelling)
  *   Write from Dictation       max = số từ trong transcript (mỗi từ đúng = 1; luyện tập theo từ, không dùng 0–90)
  *   Còn lại (MCQ, FIB, RO, HIW, …)  tính theo số ô/số lựa chọn đúng trên từng câu (UI dùng max riêng từng màn)
  *
@@ -38,9 +38,9 @@ export const MAX_SCORE_BY_TYPE: Record<string, number> = {
   SPEAKING_SUMMARISE_GROUP_DISCUSSION: 15,
   SPEAKING_RESPOND_TO_SITUATION: 15,
   SPEAKING_ANSWER_SHORT_QUESTION: 1,
-  WRITING_SUMMARIZE_WRITTEN_TEXT: 9,
-  WRITING_ESSAY: 26,
-  LISTENING_SUMMARIZE_SPOKEN_TEXT: 12,
+  WRITING_SUMMARIZE_WRITTEN_TEXT: 7,
+  WRITING_ESSAY: 15,
+  LISTENING_SUMMARIZE_SPOKEN_TEXT: 7,
 };
 
 export const DETERMINISTIC_TYPES = new Set([

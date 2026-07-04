@@ -40,7 +40,8 @@ const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       retry: 1,
-      staleTime: 0, // No cache - always fresh
+      staleTime: 30_000, // Avoid refetch storms on every mount/focus; queries that need live data (e.g. score polling) use refetchInterval, which ignores staleTime.
+      refetchOnWindowFocus: false,
       gcTime: 1000 * 60 * 5, // Keep unused queries 5 min
     },
   },
