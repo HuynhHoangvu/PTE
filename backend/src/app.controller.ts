@@ -21,10 +21,11 @@ export class AppController {
   @Get('/app-version')
   getAppVersion() {
     return {
-      minVersionCode: 1, // Minimum versionCode required to run the app
+      minVersionCode: 21, // Minimum versionCode/build required to run the app (Android versionCode & iOS CURRENT_PROJECT_VERSION kept in lockstep)
       latestVersion: '1.1.0',
       forceUpdate: true,
       storeUrl: 'market://details?id=com.flyedu.pte',
+      storeUrlIOS: 'https://apps.apple.com/us/app/fly-pte/id6778668052',
       message: 'Có phiên bản ứng dụng mới. Vui lòng cập nhật để tiếp tục sử dụng các tính năng mới nhất!'
     };
   }

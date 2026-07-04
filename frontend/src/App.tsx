@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate, useNavigate, Outlet } from "rea
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useAuthStore } from "./stores/authStore";
 import { App as CapApp } from "@capacitor/app";
+import { Capacitor } from "@capacitor/core";
 import { LocalNotifications } from "@capacitor/local-notifications";
 import React from "react";
 import { refreshNotificationsIfNeeded } from "./services/notifications";
@@ -167,8 +168,14 @@ function ForceUpdateOverlay({ info }: { info: any }) {
       <p className="text-[14px] text-gray-500 mb-8 max-w-xs mx-auto leading-relaxed">
         {info.message || "Vui lòng cập nhật ứng dụng để tiếp tục sử dụng các tính năng mới nhất!"}
       </p>
-      <button 
-        onClick={() => window.open(info.storeUrl || "market://details?id=com.flyedu.pte", "_system")}
+      <button
+        onClick={() => {
+          const isIOS = Capacitor.getPlatform() === "ios";
+          const url = isIOS
+            ? info.storeUrlIOS || "https://apps.apple.com/us/app/fly-pte/id6778668052"
+            : info.storeUrl || "market://details?id=com.flyedu.pte";
+          window.open(url, "_system");
+        }}
         className="bg-gradient-to-r from-brand-gold to-brand-gold-bright text-white font-bold py-3.5 px-8 rounded-xl shadow-gold-sm w-full max-w-xs active:scale-95 transition-transform"
       >
         Cập Nhật Ngay

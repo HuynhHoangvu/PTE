@@ -1,4 +1,4 @@
-# ✈️ Fly-Edu – PTE Academic Practice Platform
+# Fly-Edu – PTE Academic Practice Platform
 
 PTE Academic practice platform: NestJS backend + Vite/React frontend + Python (FastAPI/Whisper) scoring service, with Web/Android/iOS via Capacitor.
 
