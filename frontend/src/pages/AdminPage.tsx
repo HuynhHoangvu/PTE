@@ -3,17 +3,17 @@ import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { clsx } from "clsx";
 import {
-  Settings2, Users, ClipboardList, Search, Crown,
+  Users, ClipboardList, Search, Crown,
   CheckCircle2, Clock, AlertCircle, ChevronLeft, ChevronRight,
-  Shield, UserCheck, CreditCard, XCircle, RefreshCw,
+  Shield, UserCheck, XCircle,
   BarChart3, TrendingUp, Activity, ChevronDown, ChevronUp,
   Play, Trash2, Edit3, Save, FileText, Check, UploadCloud,
-  Download, BookOpen, AlertOctagon, HelpCircle, Mail, Globe, Sparkles
+  Download, BookOpen, Sparkles
 } from "lucide-react";
-import { questionsApi, adminApi, paymentsApi } from "../api";
+import { questionsApi, adminApi } from "../api";
 import { useAuthStore } from "../stores/authStore";
 import { MainLayout } from "../components/layout/Sidebar";
-import { Button } from "../components/ui";
+import { Button, ConfirmModal } from "../components/ui";
 import { QUESTION_TYPE_LABELS, QuestionType, SKILL_TYPES } from "../types";
 import { LUX } from "../theme/luxuryPalette";
 
@@ -45,7 +45,7 @@ const EMPTY_FORM = {
 };
 
 type FormState = typeof EMPTY_FORM;
-type Tab = "dashboard" | "questions" | "mock-tests" | "ai-scoring" | "users" | "payments" | "system";
+type Tab = "dashboard" | "questions" | "mock-tests" | "ai-scoring" | "users";
 
 // ── JSON Textarea ─────────────────────────────────────────────────────────────
 function JsonTextarea({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
@@ -231,17 +231,24 @@ function QuestionModal({ initial, onClose, onSave, saving }: {
 function DashboardTab() {
   const { data: stats } = useQuery({ queryKey: ["admin-stats"], queryFn: adminApi.getStats });
   const { data: overview } = useQuery({ queryKey: ["admin-analytics-overview"], queryFn: adminApi.getAnalyticsOverview });
-  const { data: payments } = useQuery({ queryKey: ["admin-payments"], queryFn: paymentsApi.adminListAll });
-
-  const totalRevenue = React.useMemo(() => {
-    if (!payments || !Array.isArray(payments)) return 0;
-    return payments
-      .filter((p: any) => p.status === "verified")
-      .reduce((sum: number, p: any) => sum + (p.amountVnd || 0), 0);
-  }, [payments]);
+  const { data: recentUsers, isLoading: recentLoading } = useQuery({
+    queryKey: ["admin-analytics-users", "", 1, "lastActive", "desc", "dashboard"],
+    queryFn: () => adminApi.getAnalyticsUsers({ page: 1, limit: 6, sortBy: "lastActive", sortOrder: "desc" }),
+  });
 
   const activeToday = overview?.activeToday ?? 0;
   const activeThisWeek = overview?.activeThisWeek ?? 0;
+
+  const fmtWhen = (iso?: string) => {
+    if (!iso) return "Chưa hoạt động";
+    const diffMs = Date.now() - new Date(iso).getTime();
+    const mins = Math.floor(diffMs / 60000);
+    if (mins < 1) return "Vừa xong";
+    if (mins < 60) return `${mins} phút trước`;
+    const hours = Math.floor(mins / 60);
+    if (hours < 24) return `${hours} giờ trước`;
+    return `${Math.floor(hours / 24)} ngày trước`;
+  };
 
   return (
     <div className="space-y-6">
@@ -250,7 +257,7 @@ function DashboardTab() {
         {[
           { title: "Tổng học viên", val: stats?.totalUsers ?? 0, change: "Tài khoản đăng ký", icon: "👥", bg: "bg-blue-50 text-blue-700" },
           { title: "Gói Premium", val: stats?.premiumUsers ?? 0, change: "Đang hoạt động", icon: "👑", bg: "bg-amber-50 text-amber-700" },
-          { title: "Doanh thu", val: `${(totalRevenue / 1000000).toFixed(1)}M đ`, change: "Tổng giao dịch thành công", icon: "💳", bg: "bg-green-50 text-green-700" },
+          { title: "Lượt luyện tập", val: stats?.totalAttempts ?? 0, change: "Tổng câu đã làm (mọi kỹ năng)", icon: "🎯", bg: "bg-green-50 text-green-700" },
           { title: "Lượt làm Mock Test", val: stats?.completedTests ?? 0, change: "Bài thi đã hoàn thành", icon: "📝", bg: "bg-purple-50 text-purple-700" },
         ].map((c) => (
           <div key={c.title} className="card p-5 flex items-center justify-between border border-gray-100 hover:shadow-md transition-all duration-300">
@@ -291,23 +298,32 @@ function DashboardTab() {
           <p className="text-xs text-gray-400 italic">Hệ thống ghi nhận hoạt động tự động khi học viên tiến hành thực hiện các bài thi/bài luyện tập kỹ năng.</p>
         </div>
 
-        {/* System Error Reports status */}
+        {/* Recent user activity — who is doing what */}
         <div className="card p-5 space-y-3">
           <h3 className="font-display font-black text-sm text-gray-900 flex items-center gap-1.5">
-            <AlertOctagon size={14} className="text-red-500" />
-            Báo cáo lỗi từ học viên
+            <Activity size={14} className="text-brand-gold" />
+            Học viên hoạt động gần đây
           </h3>
           <div className="space-y-2">
-            {[
-              { desc: "Lỗi âm thanh câu RS0015", status: "Chờ xử lý", color: "bg-red-100 text-red-700" },
-              { desc: "Sai chính tả nội dung RA0023", status: "Đang sửa", color: "bg-amber-100 text-amber-700" },
-              { desc: "Kết quả chấm AI không cập nhật", status: "Đã xong", color: "bg-green-100 text-green-700" },
-            ].map((err, i) => (
-              <div key={i} className="flex items-center justify-between p-2.5 rounded-lg bg-gray-50 border border-gray-100">
-                <span className="text-xs font-medium text-gray-700 truncate max-w-[150px]">{err.desc}</span>
-                <span className={clsx("text-[9px] font-black px-2 py-0.5 rounded", err.color)}>{err.status}</span>
-              </div>
-            ))}
+            {recentLoading ? (
+              <div className="flex justify-center py-6"><div className="w-5 h-5 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: `${GOLD} transparent transparent transparent` }} /></div>
+            ) : !recentUsers?.users?.length ? (
+              <p className="text-center text-xs text-gray-400 py-6">Chưa có học viên nào hoạt động</p>
+            ) : (
+              recentUsers.users.map((u: any) => (
+                <div key={u.id} className="flex items-center justify-between p-2.5 rounded-lg bg-gray-50 border border-gray-100">
+                  <div className="min-w-0">
+                    <p className="text-xs font-bold text-gray-800 truncate">{u.fullName || u.email}</p>
+                    <p className="text-[10px] text-gray-400">
+                      {u.totalAttempts} câu · TB {u.avgScore ?? 0}/90 · {fmtWhen(u.lastActiveAt)}
+                    </p>
+                  </div>
+                  <span className="text-[9px] font-black px-2 py-0.5 rounded bg-brand-gold/10 text-brand-gold shrink-0 ml-2">
+                    {u.mockCount > 0 ? `${u.mockCount} mock test` : "luyện tập"}
+                  </span>
+                </div>
+              ))
+            )}
           </div>
         </div>
       </div>
@@ -723,17 +739,6 @@ function MockTestModal({ mock, allQuestions, onClose, onSave, saving }: {
 // ── Tab 4: AI Scoring & Manual Override ─────────────────────────────────────
 function AiScoringTab() {
   const qc = useQueryClient();
-  // Simulated AI API configurations
-  const [sttUrl, setSttUrl] = React.useState(localStorage.getItem("ai_stt_url") || "https://api.openai.com/v1/audio/transcriptions");
-  const [nlpKey, setNlpKey] = React.useState(localStorage.getItem("ai_nlp_key") || "sk-********************");
-  const [weights, setWeights] = React.useState(localStorage.getItem("ai_weights") || '{"content": 0.4, "grammar": 0.4, "vocabulary": 0.2}');
-
-  const handleSaveConfig = () => {
-    localStorage.setItem("ai_stt_url", sttUrl);
-    localStorage.setItem("ai_nlp_key", nlpKey);
-    localStorage.setItem("ai_weights", weights);
-    window.alert("Đã lưu cấu hình API AI!");
-  };
 
   // Load all mock test attempts in system
   const { data: usersData, isLoading } = useQuery({
@@ -861,37 +866,9 @@ function AiScoringTab() {
   };
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-      {/* AI Config */}
-      <div className="lg:col-span-1 space-y-4">
-        <div className="card p-5 space-y-4 bg-white">
-          <h3 className="font-display font-black text-sm text-gray-900 border-b border-gray-100 pb-2 flex items-center gap-1.5">
-            <Sparkles size={14} className="text-brand-gold" />
-            Cấu hình AI Scoring API
-          </h3>
-          <div>
-            <label className="text-xs font-bold text-gray-600 block mb-1">Speech-to-Text Endpoint URL</label>
-            <input value={sttUrl} onChange={(e) => setSttUrl(e.target.value)}
-              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-brand-gold/30" />
-          </div>
-          <div>
-            <label className="text-xs font-bold text-gray-600 block mb-1">NLP Grammar Evaluation Token</label>
-            <input type="password" value={nlpKey} onChange={(e) => setNlpKey(e.target.value)}
-              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-brand-gold/30" />
-          </div>
-          <div>
-            <label className="text-xs font-bold text-gray-600 block mb-1">Grading Weights (JSON)</label>
-            <textarea rows={3} value={weights} onChange={(e) => setWeights(e.target.value)}
-              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-brand-gold/30" />
-          </div>
-          <Button variant="yellow" size="sm" onClick={handleSaveConfig} className="w-full">
-            Lưu Cấu Hình AI
-          </Button>
-        </div>
-      </div>
-
+    <div className="space-y-4">
       {/* Attempts Review */}
-      <div className="lg:col-span-2 space-y-4">
+      <div className="space-y-4">
         <h3 className="text-sm font-bold text-gray-600 uppercase tracking-widest">Danh sách bài Mock Test đã làm</h3>
         <div className="card bg-white overflow-hidden">
           {isLoading ? (
@@ -1004,19 +981,12 @@ function UsersTab() {
   const [page, setPage] = React.useState(1);
   const [editUser, setEditUser] = React.useState<any>(null);
   const [selectedUser, setSelectedUser] = React.useState<any>(null);
-
-  // Homework state
-  const [assignMockId, setAssignMockId] = React.useState("");
-  const [deadline, setDeadline] = React.useState("");
+  const [creatingUser, setCreatingUser] = React.useState(false);
+  const [deleteTarget, setDeleteTarget] = React.useState<any>(null);
 
   const { data, isLoading } = useQuery({
     queryKey: ["admin-users", search, page],
     queryFn: () => adminApi.listUsers({ search: search || undefined, page, limit: 20 }),
-  });
-
-  const { data: mockTests } = useQuery({
-    queryKey: ["admin-mock-tests-list"],
-    queryFn: adminApi.listMockTests,
   });
 
   const updateMutation = useMutation({
@@ -1024,29 +994,25 @@ function UsersTab() {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["admin-users"] }); setEditUser(null); },
   });
 
+  const createMutation = useMutation({
+    mutationFn: (data: any) => adminApi.createUser(data),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["admin-users"] }); setCreatingUser(false); },
+    onError: (err: any) => window.alert(err?.response?.data?.message || "Không tạo được người dùng."),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => adminApi.deleteUser(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin-users"] });
+      if (selectedUser?.id === deleteTarget?.id) setSelectedUser(null);
+      setDeleteTarget(null);
+    },
+    onError: (err: any) => { window.alert(err?.response?.data?.message || "Không xóa được người dùng."); setDeleteTarget(null); },
+  });
+
   const users: any[] = data?.users || [];
   const total: number = data?.total || 0;
   const totalPages = Math.ceil(total / 20);
-
-  const handleAssignHomework = () => {
-    if (!assignMockId || !deadline) {
-      window.alert("Vui lòng chọn bài thi và hạn chót!");
-      return;
-    }
-    const log = JSON.parse(localStorage.getItem("homework_assignments") || "[]");
-    log.push({
-      userId: selectedUser.id,
-      userFullName: selectedUser.fullName,
-      mockId: assignMockId,
-      mockTitle: mockTests.find((m: any) => m.id === assignMockId)?.title || assignMockId,
-      deadline,
-      assignedAt: new Date().toISOString(),
-    });
-    localStorage.setItem("homework_assignments", JSON.stringify(log));
-    window.alert(`Đã giao bài tập thành công cho ${selectedUser.fullName}!`);
-    setAssignMockId("");
-    setDeadline("");
-  };
 
   return (
     <div className="flex flex-col lg:flex-row gap-5">
@@ -1059,7 +1025,10 @@ function UsersTab() {
               placeholder="Tìm email hoặc tên..."
               className="w-full border border-gray-200 rounded-lg pl-8 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-gold/30" />
           </div>
-          <span className="text-xs font-bold text-gray-400">{total} người dùng</span>
+          <div className="flex items-center gap-3">
+            <span className="text-xs font-bold text-gray-400">{total} người dùng</span>
+            <Button variant="yellow" size="sm" onClick={() => setCreatingUser(true)}>+ Thêm người dùng</Button>
+          </div>
         </div>
 
         <div className="card overflow-hidden bg-white">
@@ -1113,8 +1082,12 @@ function UsersTab() {
                       <div>{u.totalAttempts} câu · TB {Math.round(u.averageScore || 0)}/90</div>
                     </td>
                     <td className="px-4 py-3">
-                      <button onClick={(e) => { e.stopPropagation(); setEditUser(u); }}
-                        className="text-xs font-bold text-brand-gold hover:underline">Sửa</button>
+                      <div className="flex items-center gap-3">
+                        <button onClick={(e) => { e.stopPropagation(); setEditUser(u); }}
+                          className="text-xs font-bold text-brand-gold hover:underline">Sửa</button>
+                        <button onClick={(e) => { e.stopPropagation(); setDeleteTarget(u); }}
+                          className="text-xs font-bold text-red-500 hover:underline">Xóa</button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -1135,53 +1108,114 @@ function UsersTab() {
         )}
       </div>
 
-      {/* Right panel: User detail & Homework assigner */}
-      {selectedUser && (
-        <div className="w-full lg:w-80 flex-shrink-0 space-y-4">
-          <div className="card p-5 bg-white">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="font-display font-black text-sm">Giao bài tập</h3>
-              <button onClick={() => setSelectedUser(null)} className="text-gray-400 hover:text-gray-600 text-xs">✕</button>
-            </div>
-            <div className="flex items-center gap-2.5 mb-4 pb-4 border-b border-gray-100">
-              <div className="w-10 h-10 rounded-full flex items-center justify-center text-[12px] font-black text-white"
-                style={{ background: `linear-gradient(135deg, ${GOLD}, ${GOLD_B})` }}>
-                {selectedUser.fullName?.split(" ").map((n: string) => n[0]).slice(0, 2).join("").toUpperCase() || "?"}
-              </div>
-              <div>
-                <p className="font-bold text-gray-900 text-sm">{selectedUser.fullName}</p>
-                <p className="text-[11px] text-gray-400">{selectedUser.email}</p>
-              </div>
-            </div>
-
-            <div className="space-y-3">
-              <div>
-                <label className="text-xs font-bold text-gray-600 block mb-1">Chọn đề thi</label>
-                <select value={assignMockId} onChange={(e) => setAssignMockId(e.target.value)}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-brand-gold/30 bg-white">
-                  <option value="">-- Chọn đề mock test --</option>
-                  {mockTests?.map((m: any) => (
-                    <option key={m.id} value={m.id}>{m.code} - {m.title}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="text-xs font-bold text-gray-600 block mb-1">Hạn chót làm bài</label>
-                <input type="date" value={deadline} onChange={(e) => setDeadline(e.target.value)}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-brand-gold/30" />
-              </div>
-              <Button variant="yellow" size="sm" onClick={handleAssignHomework} disabled={!assignMockId} className="w-full">
-                Xác nhận giao bài
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Right panel: real user activity detail */}
+      {selectedUser && <UserActivityPanel user={selectedUser} onClose={() => setSelectedUser(null)} />}
 
       {/* Edit User Modal (Reset password, Role, Block account) */}
       {editUser && (
         <EditUserDialog user={editUser} onClose={() => setEditUser(null)} saving={updateMutation.isPending} onSave={(data) => updateMutation.mutate({ id: editUser.id, data })} />
       )}
+
+      {creatingUser && (
+        <CreateUserDialog onClose={() => setCreatingUser(false)} saving={createMutation.isPending} onSave={(data) => createMutation.mutate(data)} />
+      )}
+
+      <ConfirmModal
+        isOpen={!!deleteTarget}
+        title="Xóa người dùng?"
+        message={deleteTarget ? `Xóa vĩnh viễn tài khoản "${deleteTarget.fullName}" (${deleteTarget.email}) cùng toàn bộ lịch sử làm bài. Không thể hoàn tác.` : undefined}
+        confirmLabel="Xóa vĩnh viễn"
+        onConfirm={() => deleteTarget && deleteMutation.mutate(deleteTarget.id)}
+        onCancel={() => setDeleteTarget(null)}
+      />
+    </div>
+  );
+}
+
+// ── User Activity Panel (dữ liệu thật, thay cho tính năng "Giao bài tập" giả) ──
+function UserActivityPanel({ user, onClose }: { user: any; onClose: () => void }) {
+  const { data, isLoading } = useQuery({
+    queryKey: ["admin-user-activity", user.id],
+    queryFn: () => adminApi.getUserActivity(user.id),
+  });
+
+  const skillLabel: Record<string, string> = { SPEAKING: "Speaking", WRITING: "Writing", READING: "Reading", LISTENING: "Listening" };
+
+  return (
+    <div className="w-full lg:w-96 flex-shrink-0 space-y-4">
+      <div className="card p-5 bg-white">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="font-display font-black text-sm">Hoạt động của học viên</h3>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xs">✕</button>
+        </div>
+        <div className="flex items-center gap-2.5 mb-4 pb-4 border-b border-gray-100">
+          <div className="w-10 h-10 rounded-full flex items-center justify-center text-[12px] font-black text-white"
+            style={{ background: `linear-gradient(135deg, ${GOLD}, ${GOLD_B})` }}>
+            {user.fullName?.split(" ").map((n: string) => n[0]).slice(0, 2).join("").toUpperCase() || "?"}
+          </div>
+          <div>
+            <p className="font-bold text-gray-900 text-sm">{user.fullName}</p>
+            <p className="text-[11px] text-gray-400">{user.email}</p>
+          </div>
+        </div>
+
+        {isLoading ? (
+          <div className="flex justify-center py-8"><div className="w-6 h-6 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: `${GOLD} transparent transparent transparent` }} /></div>
+        ) : (
+          <div className="space-y-4 max-h-[70vh] overflow-y-auto">
+            {/* Skill breakdown */}
+            {data?.byType?.length > 0 && (
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-wider text-gray-400 mb-2">Theo kỹ năng</p>
+                <div className="space-y-1.5">
+                  {data.byType.map((t: any, i: number) => (
+                    <div key={i} className="flex items-center justify-between text-xs bg-gray-50 rounded-lg px-2.5 py-1.5">
+                      <span className="font-bold text-gray-700">{skillLabel[t.skill] || t.skill} · {t.type}</span>
+                      <span className="text-gray-500">{t.count} câu · TB {t.avgScore ?? "-"}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Recent attempts */}
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-wider text-gray-400 mb-2">Bài làm gần đây</p>
+              {!data?.recentAttempts?.length ? (
+                <p className="text-xs text-gray-400 py-3 text-center">Chưa có bài luyện tập nào</p>
+              ) : (
+                <div className="space-y-1.5">
+                  {data.recentAttempts.slice(0, 8).map((a: any) => (
+                    <div key={a.id} className="flex items-center justify-between text-xs px-2.5 py-1.5 rounded-lg hover:bg-gray-50">
+                      <span className="font-mono text-gray-600">{a.questionCode}</span>
+                      <span className="text-gray-400">{new Date(a.createdAt).toLocaleDateString("vi-VN")}</span>
+                      <span className="font-bold text-brand-gold">{a.totalScore != null ? Math.round(a.totalScore) : "-"}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Mock test attempts */}
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-wider text-gray-400 mb-2">Mock test đã làm</p>
+              {!data?.mockAttempts?.length ? (
+                <p className="text-xs text-gray-400 py-3 text-center">Chưa làm mock test nào</p>
+              ) : (
+                <div className="space-y-1.5">
+                  {data.mockAttempts.map((m: any) => (
+                    <div key={m.id} className="flex items-center justify-between text-xs px-2.5 py-1.5 rounded-lg hover:bg-gray-50">
+                      <span className="font-bold text-gray-700">{m.testCode}</span>
+                      <span className="text-gray-400">{new Date(m.createdAt).toLocaleDateString("vi-VN")}</span>
+                      <span className="font-bold text-brand-gold">{m.totalScore != null ? `${Math.round(m.totalScore)}/90` : m.status}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -1249,223 +1283,64 @@ function EditUserDialog({ user, onClose, saving, onSave }: {
   );
 }
 
-// ── Tab 6: Gói cước & Tài chính ─────────────────────────────────────────────
-function PaymentsTab() {
-  const qc = useQueryClient();
-  const { data: payments, isLoading } = useQuery({ queryKey: ["admin-payments"], queryFn: paymentsApi.adminListAll });
+// ── Create User Dialog ──────────────────────────────────────────────────────
+function CreateUserDialog({ onClose, saving, onSave }: {
+  onClose: () => void; saving: boolean; onSave: (d: any) => void;
+}) {
+  const [email, setEmail] = React.useState("");
+  const [fullName, setFullName] = React.useState("");
+  const [password, setPassword] = React.useState("");
+  const [plan, setPlan] = React.useState("free");
+  const [role, setRole] = React.useState("user");
 
-  const verifyMutation = useMutation({ mutationFn: (id: string) => paymentsApi.adminVerify(id), onSuccess: () => qc.invalidateQueries({ queryKey: ["admin-payments"] }) });
-  const rejectMutation = useMutation({ mutationFn: (id: string) => paymentsApi.adminReject(id), onSuccess: () => qc.invalidateQueries({ queryKey: ["admin-payments"] }) });
-
-  const list: any[] = payments || [];
-  const pending   = list.filter((p) => p.status === "pending");
-  const processed = list.filter((p) => p.status !== "pending");
-
-  // Coupons Manager
-  const [coupons, setCoupons] = React.useState<any[]>(JSON.parse(localStorage.getItem("admin_coupons") || "[]"));
-  const [newCouponCode, setNewCouponCode] = React.useState("");
-  const [newCouponDisc, setNewCouponDisc] = React.useState(20);
-
-  const handleCreateCoupon = () => {
-    if (!newCouponCode.trim()) return;
-    const updated = [...coupons, { code: newCouponCode.toUpperCase().trim(), discount: newCouponDisc, active: true }];
-    setCoupons(updated);
-    localStorage.setItem("admin_coupons", JSON.stringify(updated));
-    setNewCouponCode("");
-  };
-
-  const handleToggleCoupon = (index: number) => {
-    const updated = [...coupons];
-    updated[index].active = !updated[index].active;
-    setCoupons(updated);
-    localStorage.setItem("admin_coupons", JSON.stringify(updated));
-  };
-
-  const handleDeleteCoupon = (index: number) => {
-    const updated = coupons.filter((_, i) => i !== index);
-    setCoupons(updated);
-    localStorage.setItem("admin_coupons", JSON.stringify(updated));
-  };
+  const canSave = email.trim() && fullName.trim() && password.trim().length >= 6;
 
   return (
-    <div className="space-y-6">
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Verification list */}
-        <div className="lg:col-span-2 space-y-4">
-          <h3 className="font-display font-black text-sm mb-3 flex items-center gap-2 text-gray-900">
-            <RefreshCw size={13} className="text-amber-500" />
-            Giao dịch chờ xác nhận
-            {pending.length > 0 && (
-              <span className="text-[10px] font-black bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">{pending.length}</span>
-            )}
-          </h3>
-          <div className="card overflow-hidden bg-white">
-            {isLoading ? (
-              <div className="flex justify-center py-10"><div className="w-6 h-6 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: `${GOLD} transparent transparent transparent` }} /></div>
-            ) : pending.length === 0 ? (
-              <p className="text-center text-sm text-gray-400 py-8">Không có đơn nào đang chờ duyệt</p>
-            ) : pending.map((p: any) => (
-              <div key={p.id} className="flex items-center gap-4 px-5 py-4 border-b border-gray-50 last:border-0 hover:bg-amber-50/20 transition-colors">
-                <div className="w-10 h-10 rounded-full flex items-center justify-center text-[11px] font-black text-white flex-shrink-0"
-                     style={{ background: `linear-gradient(135deg, ${GOLD}, ${GOLD_B})` }}>
-                  {p.user?.fullName?.split(" ").map((n: string) => n[0]).slice(0, 2).join("").toUpperCase() || "?"}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="font-bold text-sm text-gray-900">{p.user?.fullName || p.userId}</p>
-                  <p className="text-[11px] text-gray-400">{p.user?.email}</p>
-                  <div className="flex items-center gap-3 mt-1">
-                    <span className="text-[11px] font-bold text-brand-gold">Premium {p.planName}</span>
-                    <span className="text-[11px] text-gray-500">{(p.amountVnd / 1000).toFixed(0)}K đ</span>
-                  </div>
-                </div>
-                <div className="flex gap-2">
-                  <button onClick={() => verifyMutation.mutate(p.id)} disabled={verifyMutation.isPending}
-                    className="px-2.5 py-1.5 rounded-lg text-xs font-bold text-green-700 bg-green-100 hover:bg-green-200 transition-colors">
-                    Duyệt
-                  </button>
-                  <button onClick={() => rejectMutation.mutate(p.id)} disabled={rejectMutation.isPending}
-                    className="px-2.5 py-1.5 rounded-lg text-xs font-bold text-red-600 bg-red-50 hover:bg-red-100 transition-colors">
-                    Từ chối
-                  </button>
-                </div>
-              </div>
-            ))}
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
+      <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm">
+        <h3 className="font-display font-black text-lg mb-4">Thêm người dùng mới</h3>
+        <div className="space-y-4">
+          <div>
+            <label className="text-xs font-bold text-gray-600 block mb-1">Email</label>
+            <input value={email} onChange={(e) => setEmail(e.target.value)} type="email"
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none" />
           </div>
-
-          {processed.length > 0 && (
+          <div>
+            <label className="text-xs font-bold text-gray-600 block mb-1">Họ và tên</label>
+            <input value={fullName} onChange={(e) => setFullName(e.target.value)}
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none" />
+          </div>
+          <div>
+            <label className="text-xs font-bold text-gray-600 block mb-1">Mật khẩu</label>
+            <input type="password" value={password} onChange={(e) => setPassword(e.target.value)}
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none placeholder:text-gray-300"
+              placeholder="Tối thiểu 6 ký tự" />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
             <div>
-              <h3 className="font-display font-black text-sm mb-3 text-gray-900">Lịch sử thanh toán</h3>
-              <div className="card overflow-hidden bg-white max-h-60 overflow-y-auto">
-                {processed.map((p: any) => (
-                  <div key={p.id} className="flex items-center justify-between px-5 py-3 border-b border-gray-50 last:border-0">
-                    <div>
-                      <p className="font-bold text-xs text-gray-800">{p.user?.fullName || p.userId}</p>
-                      <p className="text-[10px] text-gray-400">Premium {p.planName} · {(p.amountVnd / 1000).toFixed(0)}K đ</p>
-                    </div>
-                    <span className={clsx("text-[9px] font-black px-2 py-0.5 rounded",
-                      p.status === "verified" ? "bg-green-100 text-green-700" : "bg-red-100 text-red-600")}>
-                      {p.status === "verified" ? "Thành công" : "Từ chối"}
-                    </span>
-                  </div>
-                ))}
-              </div>
+              <label className="text-xs font-bold text-gray-600 block mb-1">Gói cước</label>
+              <select value={plan} onChange={(e) => setPlan(e.target.value)}
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none bg-white">
+                <option value="free">Free</option>
+                <option value="premium">Premium</option>
+              </select>
             </div>
-          )}
-        </div>
-
-        {/* Coupons Manager */}
-        <div className="lg:col-span-1 space-y-4">
-          <div className="card p-5 bg-white space-y-4">
-            <h3 className="font-display font-black text-sm text-gray-900 border-b border-gray-100 pb-2">Mã Khuyến Mãi (Coupons)</h3>
-            <div className="flex gap-2">
-              <input value={newCouponCode} onChange={(e) => setNewCouponCode(e.target.value)}
-                placeholder="VD: MAGICAL20" className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-xs uppercase" />
-              <input type="number" value={newCouponDisc} onChange={(e) => setNewCouponDisc(parseInt(e.target.value) || 0)}
-                className="w-16 border border-gray-200 rounded-lg px-2 py-2 text-xs text-center" />
-              <Button variant="yellow" size="sm" onClick={handleCreateCoupon}>+</Button>
-            </div>
-
-            <div className="space-y-2 max-h-48 overflow-y-auto">
-              {coupons.map((c, i) => (
-                <div key={i} className="flex items-center justify-between p-2.5 rounded-lg bg-gray-50 border border-gray-100">
-                  <div>
-                    <span className="text-xs font-mono font-bold text-gray-800">{c.code}</span>
-                    <span className="text-[10px] text-green-600 ml-2 font-bold font-bold">-{c.discount}%</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button onClick={() => handleToggleCoupon(i)} className={clsx("text-[10px] font-bold px-1.5 py-0.5 rounded", c.active ? "bg-green-100 text-green-700" : "bg-gray-200 text-gray-500")}>
-                      {c.active ? "ON" : "OFF"}
-                    </button>
-                    <button onClick={() => handleDeleteCoupon(i)} className="text-xs text-red-400 hover:text-red-600">✕</button>
-                  </div>
-                </div>
-              ))}
-              {coupons.length === 0 && <p className="text-xs text-gray-400 text-center py-4">Chưa có mã giảm giá nào</p>}
+            <div>
+              <label className="text-xs font-bold text-gray-600 block mb-1">Quyền hạn</label>
+              <select value={role} onChange={(e) => setRole(e.target.value)}
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none bg-white">
+                <option value="user">Student</option>
+                <option value="teacher">Teacher</option>
+                <option value="admin">Admin</option>
+              </select>
             </div>
           </div>
         </div>
-      </div>
-    </div>
-  );
-}
-
-// ── Tab 7: System Settings & Bug Reports ────────────────────────────────────
-function SystemSettingsTab() {
-  const [issues, setIssues] = React.useState<any[]>([
-    { id: 1, email: "hocvien01@gmail.com", title: "Lỗi âm thanh câu RS0015", type: "Audio error", status: "Chờ xử lý" },
-    { id: 2, email: "hocvien02@gmail.com", title: "Sai chính tả nội dung RA0023", type: "Content error", status: "Đang sửa" },
-  ]);
-
-  const handleResolveIssue = (id: number) => {
-    const updated = issues.map((i) => i.id === id ? { ...i, status: "Đã xong" } : i);
-    setIssues(updated);
-    window.alert("Đã cập nhật trạng thái lỗi thành Đã xong!");
-  };
-
-  // Frontend configs
-  const [bannerText, setBannerText] = React.useState("Luyện thi PTE chuẩn Pearson cùng AI thông minh!");
-  const [seoTitle, setSeoTitle] = React.useState("Fly PTE - Hệ thống ôn thi PTE AI số 1");
-  const [emailTemplate, setEmailTemplate] = React.useState("Chào mừng bạn gia nhập Fly PTE. Hãy bắt đầu ôn tập ngày hôm nay...");
-
-  return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-      {/* Issues List */}
-      <div className="lg:col-span-2 space-y-4">
-        <h3 className="text-sm font-bold text-gray-600 uppercase tracking-widest">Tiếp nhận báo lỗi (Report Issues)</h3>
-        <div className="card overflow-hidden bg-white">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-gray-100 bg-gray-50">
-                {["Học viên", "Mô tả lỗi", "Loại", "Trạng thái", ""].map((h) => (
-                  <th key={h} className="text-left px-4 py-3 text-xs font-black text-gray-400 uppercase tracking-wider">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50">
-              {issues.map((i) => (
-                <tr key={i.id} className="hover:bg-gray-50 transition-all">
-                  <td className="px-4 py-3 text-xs text-gray-600 font-bold">{i.email}</td>
-                  <td className="px-4 py-3 font-medium text-gray-900">{i.title}</td>
-                  <td className="px-4 py-3 text-xs text-gray-400">{i.type}</td>
-                  <td className="px-4 py-3">
-                    <span className={clsx("text-[9px] font-black px-2 py-0.5 rounded",
-                      i.status === "Chờ xử lý" ? "bg-red-100 text-red-700" : i.status === "Đang sửa" ? "bg-amber-100 text-amber-700" : "bg-green-100 text-green-700")}>
-                      {i.status}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3">
-                    {i.status !== "Đã xong" && (
-                      <button onClick={() => handleResolveIssue(i.id)} className="text-xs font-bold text-green-600 hover:underline">Hoàn thành</button>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* General config & SEO */}
-      <div className="lg:col-span-1 space-y-4">
-        <div className="card p-5 bg-white space-y-4">
-          <h3 className="font-display font-black text-sm text-gray-900 border-b border-gray-100 pb-2">Cài Đặt Hệ Thống</h3>
-          <div>
-            <label className="text-xs font-bold text-gray-600 block mb-1">Banner trang chủ</label>
-            <input value={bannerText} onChange={(e) => setBannerText(e.target.value)}
-              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-xs focus:outline-none" />
-          </div>
-          <div>
-            <label className="text-xs font-bold text-gray-600 block mb-1">SEO Title</label>
-            <input value={seoTitle} onChange={(e) => setSeoTitle(e.target.value)}
-              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-xs focus:outline-none" />
-          </div>
-          <div>
-            <label className="text-xs font-bold text-gray-600 block mb-1">Mẫu Email Chào Mừng</label>
-            <textarea rows={4} value={emailTemplate} onChange={(e) => setEmailTemplate(e.target.value)}
-              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-xs focus:outline-none resize-none" />
-          </div>
-          <Button variant="yellow" size="sm" onClick={() => window.alert("Đã cập nhật cài đặt hệ thống!")} className="w-full">
-            Lưu Cài Đặt Hệ Thống
+        <div className="flex gap-3 mt-6">
+          <Button variant="ghost" className="flex-1" onClick={onClose}>Hủy</Button>
+          <Button variant="yellow" className="flex-1" loading={saving} disabled={!canSave}
+            onClick={() => onSave({ email: email.trim(), fullName: fullName.trim(), password, plan, role })}>
+            Tạo tài khoản
           </Button>
         </div>
       </div>
@@ -1505,8 +1380,6 @@ export default function AdminPage() {
     { key: "mock-tests",   label: "Quản lý Đề thi",     icon: BookOpen      },
     { key: "ai-scoring",   label: "Chấm điểm & AI",     icon: Sparkles      },
     { key: "users",        label: "Người dùng",         icon: Users         },
-    { key: "payments",     label: "Gói cước & Tài chính",icon: CreditCard    },
-    { key: "system",       label: "Cài đặt & Báo lỗi",  icon: Settings2     },
   ];
 
   return (
@@ -1552,8 +1425,6 @@ export default function AdminPage() {
           {tab === "mock-tests" && <MockTestsTab />}
           {tab === "ai-scoring" && <AiScoringTab />}
           {tab === "users"      && <UsersTab />}
-          {tab === "payments"   && <PaymentsTab />}
-          {tab === "system"     && <SystemSettingsTab />}
         </div>
       </div>
     </MainLayout>

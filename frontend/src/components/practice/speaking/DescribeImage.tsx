@@ -61,7 +61,7 @@ export function DescribeImage({ question }: { question: Question }) {
         <div className="px-3 pb-3 sm:px-5 sm:pb-5">
           <div className="bg-blue-50 border border-blue-100 rounded-xl px-3 py-3 sm:px-4 sm:py-4 mt-2">
             <h4 className="text-[10px] font-black uppercase tracking-widest text-blue-500 mb-2">
-              💡 Gợi ý mẫu (AI)
+              💡Gợi ý mẫu 
             </h4>
             <p className="text-sm text-blue-900 leading-relaxed">
               {question.suggestedAnswer}

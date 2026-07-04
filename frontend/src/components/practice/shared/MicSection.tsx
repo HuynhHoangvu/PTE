@@ -160,7 +160,6 @@ export function MicSection({
           <span className="text-brand-gold font-bold tabular-nums">
             {formatTime(prepSeconds)}
           </span>
-          <span className="hidden sm:inline"> (bấm mic để ghi sớm)</span>
         </p>
       )}
       {state === "countdown" && (

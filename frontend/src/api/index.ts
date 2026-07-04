@@ -149,6 +149,9 @@ export const adminApi = {
   getUser: (id: string) => api.get(`/admin/users/${id}`).then((r) => r.data),
   updateUser: (id: string, data: { plan?: string; role?: string; fullName?: string; isActive?: boolean; password?: string }) =>
     api.patch(`/admin/users/${id}`, data).then((r) => r.data),
+  createUser: (data: { email: string; fullName: string; password: string; plan?: string; role?: string }) =>
+    api.post('/admin/users', data).then((r) => r.data),
+  deleteUser: (id: string) => api.delete(`/admin/users/${id}`).then((r) => r.data),
   getUserMockTests: (id: string) =>
     api.get(`/admin/users/${id}/mock-tests`).then((r) => r.data),
   // Analytics

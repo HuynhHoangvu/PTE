@@ -1,6 +1,7 @@
 import {
   Controller, Get, Patch, Param, Body, UseGuards, Request,
-  ForbiddenException, NotFoundException, Query, Post, Delete,
+  ForbiddenException, NotFoundException, BadRequestException, ConflictException,
+  Query, Post, Delete,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -17,6 +18,14 @@ class UpdateUserDto {
   fullName?: string;
   isActive?: boolean;
   password?: string;
+}
+
+class CreateUserDto {
+  email: string;
+  fullName: string;
+  password: string;
+  plan?: UserPlan;
+  role?: UserRole;
 }
 
 @Controller('admin')
@@ -93,6 +102,39 @@ export class AdminController {
     await this.userRepo.save(user);
     const { password, ...rest } = user as any;
     return rest;
+  }
+
+  @Post('users')
+  async createUser(@Request() req, @Body() dto: CreateUserDto) {
+    this.checkAdmin(req);
+    if (!dto.email?.trim() || !dto.fullName?.trim() || !dto.password?.trim()) {
+      throw new BadRequestException('email, fullName và password là bắt buộc');
+    }
+    const existing = await this.userRepo.findOne({ where: { email: dto.email.trim().toLowerCase() } });
+    if (existing) throw new ConflictException('Email đã tồn tại');
+
+    const user = this.userRepo.create({
+      email: dto.email.trim().toLowerCase(),
+      fullName: dto.fullName.trim(),
+      password: await bcrypt.hash(dto.password, 10),
+      plan: dto.plan ?? UserPlan.FREE,
+      role: dto.role ?? UserRole.USER,
+    });
+    await this.userRepo.save(user);
+    const { password, ...rest } = user as any;
+    return rest;
+  }
+
+  @Delete('users/:id')
+  async deleteUser(@Request() req, @Param('id') id: string) {
+    this.checkAdmin(req);
+    if (id === req.user.userId) {
+      throw new BadRequestException('Không thể tự xóa tài khoản đang đăng nhập');
+    }
+    const user = await this.userRepo.findOne({ where: { id } });
+    if (!user) throw new NotFoundException('User not found');
+    await this.userRepo.delete(id);
+    return { success: true };
   }
 
   @Get('users/:id/mock-tests')

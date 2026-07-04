@@ -4,7 +4,7 @@ import { useQuery, useMutation } from '@tanstack/react-query';
 import { clsx } from 'clsx';
 import { mockTestApi, attemptsApi } from '../api';
 import { MainLayout } from '../components/layout/Sidebar';
-import { Button, AudioPlayer, Waveform } from '../components/ui';
+import { Button, AudioPlayer, Waveform, ConfirmModal } from '../components/ui';
 import { Question, QUESTION_TYPE_LABELS } from '../types';
 import { useRecorder } from '../hooks/useRecorder';
 import { parseReadingFibDrag } from '../utils/readingFibDrag';
@@ -136,6 +136,8 @@ export function MockTestExamPage() {
   const [answers, setAnswers] = React.useState<Record<string, any>>({});
   const [timeLeft, setTimeLeft] = React.useState(0);
   const [started, setStarted] = React.useState(false);
+  const [showExitConfirm, setShowExitConfirm] = React.useState(false);
+  const [showSubmitConfirm, setShowSubmitConfirm] = React.useState(false);
 
   const startMutation = useMutation({
     mutationFn: () => mockTestApi.startAttempt(id!),
@@ -201,6 +203,11 @@ export function MockTestExamPage() {
     setAnswers((prev) => ({ ...prev, [qid]: answer }));
   };
 
+  /** Giống phòng thi thật: qua câu tiếp theo tự động, câu cuối thì dừng lại chờ bấm Nộp bài. */
+  const goNext = () => {
+    setCurrentIdx((p) => Math.min(p + 1, questions.length - 1));
+  };
+
   if (!started) {
     return (
       <div className="min-h-screen bg-brand-cream flex items-center justify-center">
@@ -232,7 +239,7 @@ export function MockTestExamPage() {
           </span>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="sm" onClick={() => { if (confirm('Bạn có chắc muốn thoát?')) navigate('/mock-test'); }}>Exit</Button>
+          <Button variant="ghost" size="sm" onClick={() => setShowExitConfirm(true)}>Exit</Button>
         </div>
       </header>
 
@@ -265,6 +272,7 @@ export function MockTestExamPage() {
               question={currentQ}
               currentAnswer={answers[currentQ.id]}
               onChange={(answer) => setAnswer(currentQ.id, answer)}
+              goNext={goNext}
             />
           </div>
         ) : (
@@ -290,25 +298,84 @@ export function MockTestExamPage() {
         <div className="flex items-center gap-2">
           <Button variant="ghost" size="sm" disabled={currentIdx === 0} onClick={() => setCurrentIdx((p) => p - 1)}>← Prev</Button>
           {currentIdx < questions.length - 1 ? (
-            <Button variant="yellow" size="sm" onClick={() => setCurrentIdx((p) => p + 1)}>Next →</Button>
+            <Button variant="yellow" size="sm" onClick={goNext}>Next →</Button>
           ) : (
-            <Button variant="orange" size="sm" onClick={() => { if (confirm('Nộp bài?')) submitMutation.mutate(); }} loading={submitMutation.isPending}>
+            <Button variant="orange" size="sm" onClick={() => setShowSubmitConfirm(true)} loading={submitMutation.isPending}>
               Nộp bài ✓
             </Button>
           )}
         </div>
       </div>
+
+      <ConfirmModal
+        isOpen={showExitConfirm}
+        title="Thoát bài thi?"
+        message="Tiến trình làm bài đã được lưu, bạn có thể quay lại tiếp tục sau."
+        confirmLabel="Thoát"
+        onConfirm={() => navigate('/mock-test')}
+        onCancel={() => setShowExitConfirm(false)}
+      />
+      <ConfirmModal
+        isOpen={showSubmitConfirm}
+        title="Nộp bài thi?"
+        message="Sau khi nộp, bạn sẽ không thể chỉnh sửa câu trả lời nữa."
+        confirmLabel="Nộp bài"
+        danger={false}
+        onConfirm={() => { setShowSubmitConfirm(false); submitMutation.mutate(); }}
+        onCancel={() => setShowSubmitConfirm(false)}
+      />
     </div>
   );
 }
 
+// Câu hỏi thiếu dữ liệu bắt buộc theo từng dạng (lỗi content/crawl) — không phải
+// thứ người thi cần thấy, nên tự bỏ qua thay vì hiện lỗi hoặc màn hình trống.
+// Speaking tự có logic riêng (audioOnlySpeaking) trong ExamSpeakingSection nên bỏ qua ở đây.
+const QUESTIONS_NEEDING_OPTIONS = new Set([
+  'READING_MCQ_MULTIPLE_ANSWER', 'LISTENING_MCQ_MULTIPLE_ANSWER',
+  'READING_MCQ_SINGLE_ANSWER', 'LISTENING_MCQ_SINGLE_ANSWER',
+  'LISTENING_HIGHLIGHT_CORRECT_SUMMARY', 'LISTENING_SELECT_MISSING_WORD',
+]);
+const QUESTIONS_NEEDING_CONTENT = new Set([
+  'READING_RE_ORDER_PARAGRAPH', 'READING_FIB_R', 'READING_FIB_R_W',
+  'WRITING_ESSAY', 'WRITING_SUMMARIZE_WRITTEN_TEXT', 'LISTENING_HIGHLIGHT_INCORRECT_WORD',
+]);
+const SUPPORTED_TYPES = new Set([
+  'WRITING_ESSAY', 'WRITING_SUMMARIZE_WRITTEN_TEXT', 'LISTENING_SUMMARIZE_SPOKEN_TEXT',
+  'LISTENING_DICTATION', 'READING_MCQ_MULTIPLE_ANSWER', 'LISTENING_MCQ_MULTIPLE_ANSWER',
+  'READING_MCQ_SINGLE_ANSWER', 'LISTENING_MCQ_SINGLE_ANSWER', 'LISTENING_HIGHLIGHT_CORRECT_SUMMARY',
+  'LISTENING_SELECT_MISSING_WORD', 'READING_RE_ORDER_PARAGRAPH', 'READING_FIB_R', 'READING_FIB_R_W',
+  'LISTENING_FIB_L', 'LISTENING_HIGHLIGHT_INCORRECT_WORD',
+]);
+
+function isQuestionBroken(question: Question): boolean {
+  const { type } = question;
+  if (type.startsWith('SPEAKING_')) return false; // ExamSpeakingSection tự kiểm tra riêng
+  if (!SUPPORTED_TYPES.has(type)) return true; // dạng chưa hỗ trợ — cũng coi như lỗi, bỏ qua
+  if (type.startsWith('LISTENING_') && !question.audioUrl) return true;
+  if (QUESTIONS_NEEDING_OPTIONS.has(type) && (!question.options || question.options.length === 0)) return true;
+  if (QUESTIONS_NEEDING_CONTENT.has(type) && !question.content?.trim()) return true;
+  return false;
+}
+
 // ── Exam Question Renderer ─────────────────────────────────────────────────
-function ExamQuestionBody({ question, currentAnswer, onChange }: {
+function ExamQuestionBody({ question, currentAnswer, onChange, goNext }: {
   question: Question;
   currentAnswer: any;
   onChange: (answer: any) => void;
+  goNext: () => void;
 }) {
   const { type } = question;
+  const broken = isQuestionBroken(question);
+
+  React.useEffect(() => {
+    if (broken) goNext();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [broken]);
+
+  if (broken) {
+    return <div className="p-8 text-center text-gray-400 text-sm">Đang chuyển sang câu tiếp theo...</div>;
+  }
 
   // Speaking types - all use mic recorder with AI submission
   if (type.startsWith('SPEAKING_')) {
@@ -317,6 +384,7 @@ function ExamQuestionBody({ question, currentAnswer, onChange }: {
         question={question}
         currentAnswer={currentAnswer}
         onAnswered={onChange}
+        goNext={goNext}
       />
     );
   }
@@ -460,38 +528,17 @@ function ExamQuestionBody({ question, currentAnswer, onChange }: {
 }
 
 // ── Speaking Section ──────────────────────────────────────────────────────
-function ExamSpeakingSection({ question, currentAnswer, onAnswered }: {
+function ExamSpeakingSection({ question, currentAnswer, onAnswered, goNext }: {
   question: Question;
   currentAnswer: any;
   onAnswered: (answer: any) => void;
+  goNext: () => void;
 }) {
   const answered    = currentAnswer !== undefined;
-  const attemptId   = typeof currentAnswer === 'object' ? currentAnswer?.attemptId : null;
-  const [reRecord,   setReRecord]   = React.useState(false);
   const [submitting, setSubmitting] = React.useState(false);
-  const [aiScore,    setAiScore]    = React.useState<number | null>(null);
-  const pollRef = React.useRef<ReturnType<typeof setInterval> | null>(null);
+  const showMic = !answered;
 
-  // Poll for AI score after submission
-  React.useEffect(() => {
-    if (!attemptId || aiScore !== null) return;
-    const poll = async () => {
-      try {
-        const res = await attemptsApi.pollScore(attemptId);
-        if (res.status === 'SCORED' && res.totalScore != null) {
-          setAiScore(res.totalScore);
-          if (pollRef.current) clearInterval(pollRef.current);
-        }
-      } catch {}
-    };
-    poll();
-    pollRef.current = setInterval(poll, 4000);
-    return () => { if (pollRef.current) clearInterval(pollRef.current); };
-  }, [attemptId]);
-
-  const showMic = !answered || reRecord;
-
-  const { state, elapsed, audioUrl, startRecording, stopRecording, reset, showConsentModal, acceptConsent, declineConsent } = useRecorder({
+  const { state, elapsed, audioUrl, startRecording, stopRecording, showConsentModal, acceptConsent, declineConsent } = useRecorder({
     prepSeconds: 0,
     maxSeconds: question.responseTime || 40,
     onStop: async (blob: Blob, duration: number) => {
@@ -499,12 +546,12 @@ function ExamSpeakingSection({ question, currentAnswer, onAnswered }: {
       try {
         const result = await attemptsApi.submitSpeaking(question.id, blob, duration);
         onAnswered({ attemptId: result.id });
-        setAiScore(null); // reset so polling starts
       } catch {
         onAnswered({ attemptId: null }); // offline fallback
       } finally {
         setSubmitting(false);
-        setReRecord(false);
+        // Giống phòng thi thật: nộp xong câu này thì qua câu tiếp theo luôn, không cho ghi lại.
+        goNext();
       }
     },
   });
@@ -521,6 +568,20 @@ function ExamSpeakingSection({ question, currentAnswer, onAnswered }: {
     'SPEAKING_SUMMARISE_GROUP_DISCUSSION',
   ]);
   const hideTranscriptAsReading = audioOnlySpeaking.has(question.type);
+  // Câu hỏi thiếu dữ liệu bắt buộc (audioUrl) — nội dung lỗi của admin/crawl, không
+  // phải thứ người thi cần thấy. Tự động bỏ qua sang câu tiếp theo thay vì hiện lỗi.
+  const isBrokenQuestion = !isReadAloud && !isDescribeImage && !hasAudio && hideTranscriptAsReading;
+
+  React.useEffect(() => {
+    if (isBrokenQuestion && !answered) goNext();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isBrokenQuestion, answered]);
+
+  if (isBrokenQuestion) {
+    return (
+      <div className="p-8 text-center text-gray-400 text-sm">Đang chuyển sang câu tiếp theo...</div>
+    );
+  }
 
   return (
     <div className="px-4 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-4 sm:space-y-5">
@@ -554,10 +615,6 @@ function ExamSpeakingSection({ question, currentAnswer, onAnswered }: {
       {!isReadAloud && !isDescribeImage && !hasAudio && hideTranscriptAsReading && (
         <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-5 sm:px-6 text-center space-y-2">
           <p className="text-sm sm:text-base font-bold text-amber-900">Chưa có bản ghi âm cho câu này</p>
-          <p className="text-xs sm:text-sm text-amber-800/90 max-w-lg mx-auto leading-relaxed">
-            Trong thi thật bạn chỉ <strong>nghe</strong> hội thoại / câu đọc, không xem transcript.
-            Cần gắn <span className="font-mono text-[11px]">audioUrl</span> trong câu hỏi (admin / crawl) để phát được ở đây.
-          </p>
         </div>
       )}
 
@@ -570,18 +627,13 @@ function ExamSpeakingSection({ question, currentAnswer, onAnswered }: {
       {/* Mic / recorded area */}
       {showMic ? (
         <div className="flex flex-col items-center gap-4 py-2 sm:py-4">
-          <div className="bg-gray-50 rounded-xl border border-gray-200 py-5 px-6 sm:px-10 flex flex-col items-center w-full max-w-3xl">
-            <Waveform active={state === 'recording'} />
-            {state === 'recording' && (
+          {state === 'recording' && (
+            <div className="bg-gray-50 rounded-xl border border-gray-200 py-5 px-6 sm:px-10 flex flex-col items-center w-full max-w-3xl">
+              <Waveform active />
               <span className="text-sm text-gray-500 mt-2">{fmt(elapsed)} / {fmt(question.responseTime || 40)}</span>
-            )}
-          </div>
+            </div>
+          )}
           <div className="flex items-center gap-5">
-            {state !== 'recording' && (
-              <button onClick={reset} className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center hover:bg-gray-200 text-lg" title="Ghi lại">
-                🔄
-              </button>
-            )}
             {state === 'idle' && (
               <button onClick={startRecording}
                 className="w-16 h-16 sm:w-[4.5rem] sm:h-[4.5rem] rounded-full bg-brand-yellow hover:bg-brand-yellow-deep flex items-center justify-center text-3xl shadow-lg">
@@ -609,23 +661,7 @@ function ExamSpeakingSection({ question, currentAnswer, onAnswered }: {
         <div className="flex flex-col items-center gap-3 py-4">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-full bg-green-100 border-2 border-green-400 flex items-center justify-center text-lg">✅</div>
-            <div>
-              <span className="text-sm font-bold text-green-600 block">Đã ghi âm</span>
-              {/* AI score display */}
-              {aiScore !== null ? (
-                <span className="text-xs font-bold text-brand-gold">AI Score: {Math.round(aiScore)}/90</span>
-              ) : attemptId ? (
-                <span className="text-xs text-gray-400 flex items-center gap-1">
-                  <span className="w-3 h-3 border border-gray-400 border-t-transparent rounded-full animate-spin inline-block" />
-                  Đang chấm điểm AI...
-                </span>
-              ) : null}
-            </div>
-            <button
-              onClick={() => { setReRecord(true); reset(); setAiScore(null); }}
-              className="text-xs text-gray-400 hover:text-gray-600 underline ml-2">
-              Ghi lại
-            </button>
+            <span className="text-sm font-bold text-green-600">Đã ghi âm — đang chuyển câu tiếp theo...</span>
           </div>
         </div>
       )}

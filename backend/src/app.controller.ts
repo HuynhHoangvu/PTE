@@ -22,7 +22,7 @@ export class AppController {
   getAppVersion() {
     return {
       minVersionCode: 21, // Minimum versionCode/build required to run the app (Android versionCode & iOS CURRENT_PROJECT_VERSION kept in lockstep)
-      latestVersion: '1.1.0',
+      latestVersion: '1.1.1',
       forceUpdate: true,
       storeUrl: 'market://details?id=com.flyedu.pte',
       storeUrlIOS: 'https://apps.apple.com/us/app/fly-pte/id6778668052',

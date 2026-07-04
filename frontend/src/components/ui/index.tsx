@@ -911,3 +911,69 @@ export function QuestionListDrawer({
     </div>
   );
 }
+
+// ── Confirm Modal (replaces native window.confirm — in-app styled dialog) ──
+interface ConfirmModalProps {
+  isOpen: boolean;
+  title: string;
+  message?: string;
+  confirmLabel?: string;
+  cancelLabel?: string;
+  danger?: boolean;
+  onConfirm: () => void;
+  onCancel: () => void;
+}
+
+export function ConfirmModal({
+  isOpen,
+  title,
+  message,
+  confirmLabel = "Đồng ý",
+  cancelLabel = "Hủy bỏ",
+  danger = true,
+  onConfirm,
+  onCancel,
+}: ConfirmModalProps) {
+  if (!isOpen) return null;
+  return (
+    <div
+      className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-6"
+      onClick={onCancel}
+    >
+      <div
+        className="bg-white rounded-3xl p-6 w-full max-w-sm text-center shadow-2xl space-y-4 motion-safe:animate-fade-in-up"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div
+          className={clsx(
+            "w-12 h-12 rounded-full flex items-center justify-center mx-auto text-xl font-bold",
+            danger ? "bg-red-100 text-red-500" : "bg-amber-100 text-amber-600",
+          )}
+        >
+          {danger ? "⚠️" : "❓"}
+        </div>
+        <h3 className="font-display font-black text-lg text-gray-900">{title}</h3>
+        {message && (
+          <p className="text-xs text-gray-500 leading-relaxed max-w-xs mx-auto">{message}</p>
+        )}
+        <div className="flex gap-2.5 pt-2">
+          <button
+            onClick={onCancel}
+            className="flex-1 py-3 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold text-xs active:scale-95 transition-all"
+          >
+            {cancelLabel}
+          </button>
+          <button
+            onClick={onConfirm}
+            className={clsx(
+              "flex-1 py-3 rounded-xl text-white font-bold text-xs active:scale-95 transition-all",
+              danger ? "bg-red-500 hover:bg-red-600" : "bg-brand-gold hover:bg-brand-gold-bright",
+            )}
+          >
+            {confirmLabel}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
